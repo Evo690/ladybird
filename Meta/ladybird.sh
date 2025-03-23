@@ -66,22 +66,9 @@ exit_if_running_as_root "Do not run ladybird.sh as root, your Build directory wi
 CMAKE_ARGS=()
 CMD_ARGS=( "$@" )
 
-if [ "$(uname -s)" = Linux ] && [ "$(uname -m)" = "aarch64" ]; then
-    PKGCONFIG=$(which pkg-config)
-    GN=$(command -v gn || echo "")
-    CMAKE_ARGS+=("-DPKG_CONFIG_EXECUTABLE=$PKGCONFIG")
-    # https://github.com/LadybirdBrowser/ladybird/issues/261
-    if [ "$(getconf PAGESIZE)" != "4096" ]; then
-        if [ -z "$GN" ]; then
-            die "GN not found! Please build GN from source and put it in \$PATH"
-        fi
-    fi
-    cat <<- EOF > Meta/CMake/vcpkg/user-variables.cmake
-set(PKGCONFIG $PKGCONFIG)
-set(GN $GN)
-EOF
-
-fi
+# Ensure the number of cores (threads) available is printed at the start of the build process
+NUM_CORES=$(nproc)  # Get the number of CPU cores (threads)
+echo "Available cores (threads): $NUM_CORES"
 
 create_build_dir() {
     check_program_version_at_least CMake cmake 3.25 || exit 1
@@ -126,10 +113,10 @@ build_target() {
     export QT_QPA_PLATFORM=offscreen  # Prevents GUI from launching
     export QT_QPA_PLATFORMTHEME=qt5ct  # Avoids some Qt6 theme issues
 
-    # Get either the environment MAKEJOBS or all processors via CMake
-    [ -z "$MAKEJOBS" ] && MAKEJOBS=$(cmake -P "$LADYBIRD_SOURCE_DIR/Meta/CMake/processor-count.cmake")
+    # Get the number of parallel jobs to run (either from MAKEJOBS or all cores)
+    [ -z "$MAKEJOBS" ] && MAKEJOBS=$NUM_CORES  # Use all cores if MAKEJOBS isn't set
 
-    # Build with Ninja
+    # Build with Ninja or Make
     if [ $# -eq 0 ]; then
         CMAKE_BUILD_PARALLEL_LEVEL="$MAKEJOBS" cmake --build "$BUILD_DIR"
     else
