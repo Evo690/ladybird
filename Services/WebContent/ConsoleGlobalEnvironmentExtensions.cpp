@@ -27,10 +27,10 @@ void ConsoleGlobalEnvironmentExtensions::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
 
-    define_native_accessor(realm, "$0", $0_getter, nullptr, 0);
-    define_native_accessor(realm, "$_", $__getter, nullptr, 0);
-    define_native_function(realm, "$", $_function, 2, JS::default_attributes);
-    define_native_function(realm, "$$", $$_function, 2, JS::default_attributes);
+    define_native_accessor(realm, "$0"_fly_string, $0_getter, nullptr, 0);
+    define_native_accessor(realm, "$_"_fly_string, $__getter, nullptr, 0);
+    define_native_function(realm, "$"_fly_string, $_function, 2, JS::default_attributes);
+    define_native_function(realm, "$$"_fly_string, $$_function, 2, JS::default_attributes);
 }
 
 void ConsoleGlobalEnvironmentExtensions::visit_edges(Visitor& visitor)
@@ -71,7 +71,7 @@ JS_DEFINE_NATIVE_FUNCTION(ConsoleGlobalEnvironmentExtensions::$_function)
     auto* console_global_object = TRY(get_console(vm));
     auto& window = *console_global_object->m_window_object;
 
-    auto selector = TRY(vm.argument(0).to_byte_string(vm));
+    auto selector = TRY(vm.argument(0).to_string(vm));
 
     if (vm.argument_count() > 1) {
         auto element_value = vm.argument(1);
@@ -95,7 +95,7 @@ JS_DEFINE_NATIVE_FUNCTION(ConsoleGlobalEnvironmentExtensions::$$_function)
     auto* console_global_object = TRY(get_console(vm));
     auto& window = *console_global_object->m_window_object;
 
-    auto selector = TRY(vm.argument(0).to_byte_string(vm));
+    auto selector = TRY(vm.argument(0).to_string(vm));
 
     Web::DOM::ParentNode* element = &window.associated_document();
 

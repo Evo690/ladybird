@@ -633,7 +633,7 @@ void WindowOrWorkerGlobalScopeMixin::queue_the_performance_observer_task()
             //    droppedEntriesCount if droppedEntriesCount is not null, otherwise unset.
             auto callback_options = JS::Object::create(realm, realm.intrinsics().object_prototype());
             if (dropped_entries_count.has_value())
-                MUST(callback_options->create_data_property("droppedEntriesCount", JS::Value(dropped_entries_count.value())));
+                MUST(callback_options->create_data_property("droppedEntriesCount"_fly_string, JS::Value(dropped_entries_count.value())));
 
             // 9. Call po’s observer callback with observerEntryList as the first argument, with po as the second
             //    argument and as callback this value, and with callbackOptions as the third argument.
@@ -1001,10 +1001,10 @@ void WindowOrWorkerGlobalScopeMixin::report_an_exception(JS::Value exception, Om
             // FIXME: 3. If notHandled is true, then report exception for workerObject's relevant global object with
             //    omitError set to true.
         }
-    }
-    // 8. Otherwise, the user agent may report exception to a developer console.
-    else {
-        report_exception_to_console(exception, realm, ErrorInPromise::No);
+        // 3. Otherwise, the user agent may report exception to a developer console.
+        else {
+            report_exception_to_console(exception, realm, ErrorInPromise::No);
+        }
     }
 }
 

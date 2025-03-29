@@ -21,7 +21,7 @@ TESTJS_GLOBAL_FUNCTION(read_binary_wasm_file, readBinaryWasmFile)
         return StringView { error_string, strlen(error_string) };
     };
 
-    auto filename = TRY(vm.argument(0).to_byte_string(vm));
+    auto filename = TRY(vm.argument(0).to_string(vm));
     auto file = Core::File::open(filename, Core::File::OpenMode::Read);
     if (file.is_error())
         return vm.throw_completion<JS::TypeError>(error_code_to_string(file.error().code()));
@@ -178,7 +178,7 @@ TESTJS_GLOBAL_FUNCTION(parse_webassembly_module, parseWebAssemblyModule)
             auto& module_object = static_cast<WebAssemblyModule&>(value.as_object());
             for (auto& entry : module_object.module_instance().exports()) {
                 // FIXME: Don't pretend that everything is a function
-                imports.set({ property.key.as_string(), entry.name(), Wasm::TypeIndex(0) }, entry.value());
+                imports.set({ property.key.as_string().to_string().to_byte_string(), entry.name(), Wasm::TypeIndex(0) }, entry.value());
             }
         }
     }
@@ -243,7 +243,7 @@ TESTJS_GLOBAL_FUNCTION(test_simd_vector, testSIMDVector)
     if (!is<JS::TypedArrayBase>(*got))
         return vm.throw_completion<JS::TypeError>("Expected a TypedArray"sv);
     auto& got_array = static_cast<JS::TypedArrayBase&>(*got);
-    auto element_size = 128 / TRY(TRY(expected_array.get("length")).to_u32(vm));
+    auto element_size = 128 / TRY(TRY(expected_array.get("length"_fly_string)).to_u32(vm));
     size_t i = 0;
     for (auto it = expected_array.indexed_properties().begin(false); it != expected_array.indexed_properties().end(); ++it) {
         auto got_value = TRY(got_array.get(i++));
@@ -277,20 +277,20 @@ TESTJS_GLOBAL_FUNCTION(test_simd_vector, testSIMDVector)
 void WebAssemblyModule::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
-    define_native_function(realm, "getExport", get_export, 1, JS::default_attributes);
-    define_native_function(realm, "invoke", wasm_invoke, 1, JS::default_attributes);
+    define_native_function(realm, "getExport"_fly_string, get_export, 1, JS::default_attributes);
+    define_native_function(realm, "invoke"_fly_string, wasm_invoke, 1, JS::default_attributes);
 }
 
 JS_DEFINE_NATIVE_FUNCTION(WebAssemblyModule::get_export)
 {
-    auto name = TRY(vm.argument(0).to_byte_string(vm));
+    auto name = TRY(vm.argument(0).to_string(vm));
     auto this_value = vm.this_value();
     auto object = TRY(this_value.to_object(vm));
     if (!is<WebAssemblyModule>(*object))
         return vm.throw_completion<JS::TypeError>("Not a WebAssemblyModule"sv);
     auto& instance = static_cast<WebAssemblyModule&>(*object);
     for (auto& entry : instance.module_instance().exports()) {
-        if (entry.name() == name) {
+        if (entry.name() == name.to_byte_string()) {
             auto& value = entry.value();
             if (auto ptr = value.get_pointer<Wasm::FunctionAddress>())
                 return JS::Value(static_cast<unsigned long>(ptr->value()));

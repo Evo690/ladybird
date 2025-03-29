@@ -61,6 +61,7 @@ private:
     virtual Messages::WebContentServer::GetWindowHandleResponse get_window_handle(u64 page_id) override;
     virtual void set_window_handle(u64 page_id, String handle) override;
     virtual void connect_to_webdriver(u64 page_id, ByteString webdriver_ipc_path) override;
+    virtual void connect_to_web_ui(u64 page_id, IPC::File web_ui_socket) override;
     virtual void connect_to_image_decoder(IPC::File image_decoder_socket) override;
     virtual void update_system_theme(u64 page_id, Core::AnonymousBuffer) override;
     virtual void update_screen_rects(u64 page_id, Vector<Web::DevicePixelRect>, u32) override;
@@ -76,9 +77,9 @@ private:
     virtual void debug_request(u64 page_id, ByteString, ByteString) override;
     virtual void get_source(u64 page_id) override;
     virtual void inspect_dom_tree(u64 page_id) override;
-    virtual void inspect_dom_node(u64 page_id, WebView::DOMNodeProperties::Type, Web::UniqueNodeID node_id, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element) override;
+    virtual void inspect_dom_node(u64 page_id, WebView::DOMNodeProperties::Type, Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element) override;
     virtual void clear_inspected_dom_node(u64 page_id) override;
-    virtual void highlight_dom_node(u64 page_id, Web::UniqueNodeID node_id, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element) override;
+    virtual void highlight_dom_node(u64 page_id, Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element) override;
     virtual void inspect_accessibility_tree(u64 page_id) override;
     virtual void get_hovered_node_id(u64 page_id) override;
 

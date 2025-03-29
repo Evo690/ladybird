@@ -437,7 +437,7 @@ CSSPixels FormattingContext::compute_table_box_width_inside_table_wrapper(Box co
     });
     VERIFY(table_box.has_value());
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
 
     auto& table_box_state = throwaway_state.get_mutable(*table_box);
     auto const& table_box_computed_values = table_box->computed_values();
@@ -476,7 +476,8 @@ CSSPixels FormattingContext::compute_table_box_height_inside_table_wrapper(Box c
     // table-wrapper can't have borders or paddings but it might have margin taken from table-root.
     auto available_height = height_of_containing_block - margin_top.to_px(box) - margin_bottom.to_px(box);
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
+
     auto context = create_independent_formatting_context_if_needed(throwaway_state, LayoutMode::IntrinsicSizing, box);
     VERIFY(context);
     context->run(m_state.get(box).available_inner_space_or_constraints_from(available_space));
@@ -1454,7 +1455,7 @@ CSSPixels FormattingContext::calculate_min_content_width(Layout::Box const& box)
     if (cache.has_value())
         return cache.value();
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
 
     auto& box_state = throwaway_state.get_mutable(box);
     box_state.width_constraint = SizeConstraint::MinContent;
@@ -1486,7 +1487,7 @@ CSSPixels FormattingContext::calculate_max_content_width(Layout::Box const& box)
     if (cache.has_value())
         return cache.value();
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
 
     auto& box_state = throwaway_state.get_mutable(box);
     box_state.width_constraint = SizeConstraint::MaxContent;
@@ -1523,7 +1524,7 @@ CSSPixels FormattingContext::calculate_min_content_height(Layout::Box const& box
     if (cache.has_value())
         return cache.value();
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
 
     auto& box_state = throwaway_state.get_mutable(box);
     box_state.height_constraint = SizeConstraint::MinContent;
@@ -1554,7 +1555,7 @@ CSSPixels FormattingContext::calculate_max_content_height(Layout::Box const& box
     if (cache_slot.has_value())
         return cache_slot.value();
 
-    LayoutState throwaway_state(&m_state);
+    LayoutState throwaway_state;
 
     auto& box_state = throwaway_state.get_mutable(box);
     box_state.height_constraint = SizeConstraint::MaxContent;
@@ -1894,11 +1895,9 @@ bool box_is_sized_as_replaced_element(Box const& box)
         // However, it is suggested that, if the containing block’s width does not itself depend on the replaced element’s width,
         // then the used value of width is calculated from the constraint equation used for block-level, non-replaced elements in normal flow.
 
-        // AD-HOC: For inline-level boxes, we don't want to end up in a situation where we apply stretch-fit sizing,
-        //         since that would not match other browsers. Because of that, we specifically reject this case here
-        //         instead of allowing it to proceed.
-        if (box.display().is_inline_outside()
-            && box.computed_values().height().is_auto()
+        // AD-HOC: If box has preferred aspect ratio but width and height are not specified, then we should
+        //         size it as a normal box to match other browsers.
+        if (box.computed_values().height().is_auto()
             && box.computed_values().width().is_auto()
             && !box.has_natural_width()
             && !box.has_natural_height()) {

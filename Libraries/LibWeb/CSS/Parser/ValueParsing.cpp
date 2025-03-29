@@ -56,6 +56,7 @@
 #include <LibWeb/CSS/StyleValues/StringStyleValue.h>
 #include <LibWeb/CSS/StyleValues/TimeStyleValue.h>
 #include <LibWeb/CSS/StyleValues/URLStyleValue.h>
+#include <LibWeb/CSS/StyleValues/UnicodeRangeStyleValue.h>
 #include <LibWeb/CSS/StyleValues/UnresolvedStyleValue.h>
 #include <LibWeb/DOM/Element.h>
 #include <LibWeb/Dump.h>
@@ -309,6 +310,55 @@ Optional<Ratio> Parser::parse_ratio(TokenStream<ComponentValue>& tokens)
     // Single-value ratio
     transaction.commit();
     return Ratio { numerator };
+}
+
+// https://drafts.csswg.org/css-fonts-4/#family-name-syntax
+RefPtr<CSSStyleValue> Parser::parse_family_name_value(TokenStream<ComponentValue>& tokens)
+{
+    auto transaction = tokens.begin_transaction();
+    tokens.discard_whitespace();
+
+    // <family-name> = <string> | <custom-ident>+
+    Vector<String> parts;
+    while (tokens.has_next_token()) {
+        auto const& peek = tokens.next_token();
+
+        if (peek.is(Token::Type::String)) {
+            // `font-family: my cool "font";` is invalid.
+            if (!parts.is_empty())
+                return nullptr;
+            tokens.discard_a_token(); // String
+            tokens.discard_whitespace();
+            transaction.commit();
+            return StringStyleValue::create(peek.token().string());
+        }
+
+        if (peek.is(Token::Type::Ident)) {
+            auto ident = tokens.consume_a_token().token().ident();
+
+            // CSS-wide keywords are not allowed
+            if (is_css_wide_keyword(ident))
+                return nullptr;
+
+            // <generic-family> is a separate type from <family-name>, and so isn't allowed here.
+            auto maybe_keyword = keyword_from_string(ident);
+            if (maybe_keyword.has_value() && keyword_to_generic_font_family(maybe_keyword.value()).has_value()) {
+                return nullptr;
+            }
+
+            parts.append(ident.to_string());
+            tokens.discard_whitespace();
+            continue;
+        }
+
+        break;
+    }
+
+    if (parts.is_empty())
+        return nullptr;
+
+    transaction.commit();
+    return CustomIdentStyleValue::create(MUST(String::join(' ', parts)));
 }
 
 // https://www.w3.org/TR/css-syntax-3/#urange-syntax
@@ -570,6 +620,13 @@ Vector<Gfx::UnicodeRange> Parser::parse_unicode_ranges(TokenStream<ComponentValu
         unicode_ranges.append(maybe_unicode_range.release_value());
     }
     return unicode_ranges;
+}
+
+RefPtr<UnicodeRangeStyleValue> Parser::parse_unicode_range_value(TokenStream<ComponentValue>& tokens)
+{
+    if (auto range = parse_unicode_range(tokens); range.has_value())
+        return UnicodeRangeStyleValue::create(range.release_value());
+    return nullptr;
 }
 
 RefPtr<CSSStyleValue> Parser::parse_integer_value(TokenStream<ComponentValue>& tokens)
@@ -2858,34 +2915,41 @@ RefPtr<CSSStyleValue> Parser::parse_builtin_value(TokenStream<ComponentValue>& t
 }
 
 // https://www.w3.org/TR/css-values-4/#custom-idents
-RefPtr<CustomIdentStyleValue> Parser::parse_custom_ident_value(TokenStream<ComponentValue>& tokens, ReadonlySpan<StringView> blacklist)
+Optional<FlyString> Parser::parse_custom_ident(TokenStream<ComponentValue>& tokens, ReadonlySpan<StringView> blacklist)
 {
     auto transaction = tokens.begin_transaction();
     tokens.discard_whitespace();
 
     auto const& token = tokens.consume_a_token();
     if (!token.is(Token::Type::Ident))
-        return nullptr;
+        return {};
     auto custom_ident = token.token().ident();
 
     // The CSS-wide keywords are not valid <custom-ident>s.
     if (is_css_wide_keyword(custom_ident))
-        return nullptr;
+        return {};
 
     // The default keyword is reserved and is also not a valid <custom-ident>.
     if (custom_ident.equals_ignoring_ascii_case("default"sv))
-        return nullptr;
+        return {};
 
     // Specifications using <custom-ident> must specify clearly what other keywords are excluded from <custom-ident>,
     // if any—for example by saying that any pre-defined keywords in that property’s value definition are excluded.
     // Excluded keywords are excluded in all ASCII case permutations.
     for (auto& value : blacklist) {
         if (custom_ident.equals_ignoring_ascii_case(value))
-            return nullptr;
+            return {};
     }
 
     transaction.commit();
-    return CustomIdentStyleValue::create(custom_ident);
+    return custom_ident;
+}
+
+RefPtr<CustomIdentStyleValue> Parser::parse_custom_ident_value(TokenStream<ComponentValue>& tokens, ReadonlySpan<StringView> blacklist)
+{
+    if (auto custom_ident = parse_custom_ident(tokens, blacklist); custom_ident.has_value())
+        return CustomIdentStyleValue::create(custom_ident.release_value());
+    return nullptr;
 }
 
 Optional<CSS::GridSize> Parser::parse_grid_size(ComponentValue const& component_value)
@@ -3044,6 +3108,12 @@ Optional<CSS::GridRepeat> Parser::parse_repeat(Vector<ComponentValue> const& com
                 && (track_sizing_function.value().grid_size().is_flexible_length() || token.is_ident("auto"sv))
                 && (is_auto_fill || is_auto_fit))
                 return {};
+            if ((is_auto_fill || is_auto_fit) && track_sizing_function->is_minmax()) {
+                auto const& minmax = track_sizing_function->minmax();
+                if (!minmax.min_grid_size().is_definite() && !minmax.max_grid_size().is_definite()) {
+                    return {};
+                }
+            }
 
             repeat_params.append(track_sizing_function.value());
             part_two_tokens.discard_whitespace();
@@ -3250,6 +3320,12 @@ RefPtr<CSSStyleValue> Parser::parse_calculated_value(ComponentValue const& compo
                         "radial-gradient"sv, "repeating-radial-gradient"sv,
                         "conic-gradient"sv, "repeating-conic-gradient"sv)) {
                     return CalculationContext { .percentages_resolve_as = ValueType::Length };
+                }
+                // https://drafts.csswg.org/css-transforms-2/#transform-functions
+                // The scale family of functions treats percentages as numbers.
+                if (function.name.is_one_of_ignoring_ascii_case(
+                        "scale"sv, "scalex"sv, "scaley"sv, "scalez"sv, "scale3d"sv)) {
+                    return CalculationContext { .percentages_resolve_as = ValueType::Number };
                 }
                 // FIXME: Add other functions that provide a context for resolving values
                 return {};
@@ -3555,7 +3631,7 @@ RefPtr<StringStyleValue> Parser::parse_opentype_tag_value(TokenStream<ComponentV
     return string_value;
 }
 
-NonnullRefPtr<CSSStyleValue> Parser::resolve_unresolved_style_value(ParsingParams const& context, DOM::Element& element, Optional<Selector::PseudoElement::Type> pseudo_element, PropertyID property_id, UnresolvedStyleValue const& unresolved)
+NonnullRefPtr<CSSStyleValue> Parser::resolve_unresolved_style_value(ParsingParams const& context, DOM::Element& element, Optional<PseudoElement> pseudo_element, PropertyID property_id, UnresolvedStyleValue const& unresolved)
 {
     // Unresolved always contains a var() or attr(), unless it is a custom property's value, in which case we shouldn't be trying
     // to produce a different CSSStyleValue from it.
@@ -3610,7 +3686,7 @@ private:
     bool m_marked { false };
 };
 
-NonnullRefPtr<CSSStyleValue> Parser::resolve_unresolved_style_value(DOM::Element& element, Optional<Selector::PseudoElement::Type> pseudo_element, PropertyID property_id, UnresolvedStyleValue const& unresolved)
+NonnullRefPtr<CSSStyleValue> Parser::resolve_unresolved_style_value(DOM::Element& element, Optional<PseudoElement> pseudo_element, PropertyID property_id, UnresolvedStyleValue const& unresolved)
 {
     TokenStream unresolved_values_without_variables_expanded { unresolved.values() };
     Vector<ComponentValue> values_with_variables_expanded;
@@ -3639,7 +3715,7 @@ NonnullRefPtr<CSSStyleValue> Parser::resolve_unresolved_style_value(DOM::Element
     return CSSKeywordValue::create(Keyword::Unset);
 }
 
-static RefPtr<CSSStyleValue const> get_custom_property(DOM::Element const& element, Optional<CSS::Selector::PseudoElement::Type> pseudo_element, FlyString const& custom_property_name)
+static RefPtr<CSSStyleValue const> get_custom_property(DOM::Element const& element, Optional<CSS::PseudoElement> pseudo_element, FlyString const& custom_property_name)
 {
     if (pseudo_element.has_value()) {
         if (auto it = element.custom_properties(pseudo_element).find(custom_property_name); it != element.custom_properties(pseudo_element).end())
@@ -3653,7 +3729,7 @@ static RefPtr<CSSStyleValue const> get_custom_property(DOM::Element const& eleme
     return nullptr;
 }
 
-bool Parser::expand_variables(DOM::Element& element, Optional<Selector::PseudoElement::Type> pseudo_element, FlyString const& property_name, HashMap<FlyString, NonnullRefPtr<PropertyDependencyNode>>& dependencies, TokenStream<ComponentValue>& source, Vector<ComponentValue>& dest)
+bool Parser::expand_variables(DOM::Element& element, Optional<PseudoElement> pseudo_element, FlyString const& property_name, HashMap<FlyString, NonnullRefPtr<PropertyDependencyNode>>& dependencies, TokenStream<ComponentValue>& source, Vector<ComponentValue>& dest)
 {
     // Arbitrary large value chosen to avoid the billion-laughs attack.
     // https://www.w3.org/TR/css-variables-1/#long-variables

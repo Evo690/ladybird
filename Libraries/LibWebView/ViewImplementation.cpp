@@ -329,7 +329,7 @@ void ViewImplementation::get_hovered_node_id()
     client().async_get_hovered_node_id(page_id());
 }
 
-void ViewImplementation::inspect_dom_node(Web::UniqueNodeID node_id, DOMNodeProperties::Type property_type, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element)
+void ViewImplementation::inspect_dom_node(Web::UniqueNodeID node_id, DOMNodeProperties::Type property_type, Optional<Web::CSS::PseudoElement> pseudo_element)
 {
     client().async_inspect_dom_node(page_id(), property_type, node_id, pseudo_element);
 }
@@ -339,7 +339,7 @@ void ViewImplementation::clear_inspected_dom_node()
     client().async_clear_inspected_dom_node(page_id());
 }
 
-void ViewImplementation::highlight_dom_node(Web::UniqueNodeID node_id, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element)
+void ViewImplementation::highlight_dom_node(Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element)
 {
     client().async_highlight_dom_node(page_id(), node_id, pseudo_element);
 }
@@ -638,16 +638,22 @@ void ViewImplementation::handle_web_content_process_crash(LoadErrorPage load_err
 
     if (load_error_page == LoadErrorPage::Yes) {
         StringBuilder builder;
-        builder.append("<html><head><title>Crashed: "sv);
-        builder.append(escape_html_entities(m_url.to_byte_string()));
-        builder.append("</title></head><body>"sv);
-        builder.append("<h1>Web page crashed"sv);
-        if (m_url.host().has_value()) {
-            builder.appendff(" on {}", escape_html_entities(m_url.serialized_host()));
-        }
-        builder.append("</h1>"sv);
+        builder.append("<!DOCTYPE html>"sv);
+        builder.append("<html lang=\"en\"><head><meta charset=\"UTF-8\"><title>Error!</title><style>"
+                       ":root { color-scheme: light dark; font-family: system-ui, sans-serif; }"
+                       "body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; text-align: center; }"
+                       "header { display: flex; flex-direction: column; align-items: center; gap: 2rem; margin-bottom: 1rem; }"
+                       "svg { height: 64px; width: auto; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }"
+                       "h1 { margin: 0; font-size: 1.5rem; }"
+                       "p { font-size: 1rem; color: #555; }"
+                       "</style></head><body>"sv);
+        builder.append("<header>"sv);
+        builder.append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 17.5 21.5\">"sv);
+        builder.append("<path class=\"b\" d=\"M11.75.75h-9c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-13l-5-5z\"/>"sv);
+        builder.append("<path class=\"b\" d=\"M10.75.75v4c0 1.1.9 2 2 2h4M4.75 9.75l2 2M10.75 9.75l2 2M12.75 9.75l-2 2M6.75 9.75l-2 2M5.75 16.75c1-2.67 5-2.67 6 0\"/></svg>"sv);
         auto escaped_url = escape_html_entities(m_url.to_byte_string());
-        builder.appendff("The web page <a href=\"{}\">{}</a> has crashed.<br><br>You can reload the page to try again.", escaped_url, escaped_url);
+        builder.append("<h1>Ladybird flew off-course!</h1>"sv);
+        builder.appendff("<p>The web page <a href=\"{}\">{}</a> has crashed.<br><br>You can reload the page to try again.</p>", escaped_url, escaped_url);
         builder.append("</body></html>"sv);
         load_html(builder.to_byte_string());
     }

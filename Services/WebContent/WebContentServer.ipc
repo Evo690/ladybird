@@ -24,6 +24,7 @@ endpoint WebContentServer
     set_window_handle(u64 page_id, String handle) =|
 
     connect_to_webdriver(u64 page_id, ByteString webdriver_ipc_path) =|
+    connect_to_web_ui(u64 page_id, IPC::File socket_fd) =|
     connect_to_image_decoder(IPC::File socket_fd) =|
 
     update_system_theme(u64 page_id, Core::AnonymousBuffer theme_buffer) =|
@@ -45,9 +46,9 @@ endpoint WebContentServer
     debug_request(u64 page_id, ByteString request, ByteString argument) =|
     get_source(u64 page_id) =|
     inspect_dom_tree(u64 page_id) =|
-    inspect_dom_node(u64 page_id, WebView::DOMNodeProperties::Type property_type, Web::UniqueNodeID node_id, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element) =|
+    inspect_dom_node(u64 page_id, WebView::DOMNodeProperties::Type property_type, Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element) =|
     clear_inspected_dom_node(u64 page_id) =|
-    highlight_dom_node(u64 page_id, Web::UniqueNodeID node_id, Optional<Web::CSS::Selector::PseudoElement::Type> pseudo_element) =|
+    highlight_dom_node(u64 page_id, Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element) =|
     inspect_accessibility_tree(u64 page_id) =|
     get_hovered_node_id(u64 page_id) =|
 

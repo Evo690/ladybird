@@ -206,7 +206,7 @@ ThrowCompletionOr<Realm*> get_function_realm(VM& vm, FunctionObject const& funct
 }
 
 // 8.5.2.1 InitializeBoundName ( name, value, environment ), https://tc39.es/ecma262/#sec-initializeboundname
-ThrowCompletionOr<void> initialize_bound_name(VM& vm, DeprecatedFlyString const& name, Value value, Environment* environment)
+ThrowCompletionOr<void> initialize_bound_name(VM& vm, FlyString const& name, Value value, Environment* environment)
 {
     // 1. If environment is not undefined, then
     if (environment) {
@@ -233,7 +233,7 @@ ThrowCompletionOr<void> initialize_bound_name(VM& vm, DeprecatedFlyString const&
 bool is_compatible_property_descriptor(bool extensible, PropertyDescriptor const& descriptor, Optional<PropertyDescriptor> const& current)
 {
     // 1. Return ValidateAndApplyPropertyDescriptor(undefined, "", Extensible, Desc, Current).
-    return validate_and_apply_property_descriptor(nullptr, "", extensible, descriptor, current);
+    return validate_and_apply_property_descriptor(nullptr, FlyString {}, extensible, descriptor, current);
 }
 
 // 10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current ), https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor
@@ -583,7 +583,7 @@ ThrowCompletionOr<Value> perform_eval(VM& vm, Value x, CallerMode strict_caller,
         .in_class_field_initializer = in_class_field_initializer,
     };
 
-    Parser parser { Lexer { code_string.byte_string() }, Program::Type::Script, move(initial_state) };
+    Parser parser { Lexer { code_string.utf8_string_view() }, Program::Type::Script, move(initial_state) };
     auto program = parser.parse_program(strict_caller == CallerMode::Strict);
 
     //     b. If script is a List of errors, throw a SyntaxError exception.
@@ -692,7 +692,7 @@ ThrowCompletionOr<Value> perform_eval(VM& vm, Value x, CallerMode strict_caller,
         return vm.throw_completion<InternalError>(ErrorType::NotImplemented, TRY_OR_THROW_OOM(vm, executable_result.error().to_string()));
 
     auto executable = executable_result.release_value();
-    executable->name = "eval"sv;
+    executable->name = "eval"_fly_string;
     if (Bytecode::g_dump_bytecode)
         executable->dump();
     auto result_or_error = vm.bytecode_interpreter().run_executable(*executable, {});
@@ -779,7 +779,7 @@ ThrowCompletionOr<void> eval_declaration_instantiation(VM& vm, Program const& pr
     Vector<FunctionDeclaration const&> functions_to_initialize;
 
     // 9. Let declaredFunctionNames be a new empty List.
-    HashTable<DeprecatedFlyString> declared_function_names;
+    HashTable<FlyString> declared_function_names;
 
     // 10. For each element d of varDeclarations, in reverse List order, do
     TRY(program.for_each_var_function_declaration_in_reverse_order([&](FunctionDeclaration const& function) -> ThrowCompletionOr<void> {
@@ -820,7 +820,7 @@ ThrowCompletionOr<void> eval_declaration_instantiation(VM& vm, Program const& pr
     if (!strict) {
         // a. Let declaredFunctionOrVarNames be the list-concatenation of declaredFunctionNames and declaredVarNames.
         // The spec here uses 'declaredVarNames' but that has not been declared yet.
-        HashTable<DeprecatedFlyString> hoisted_functions;
+        HashTable<FlyString> hoisted_functions;
 
         // b. For each FunctionDeclaration f that is directly contained in the StatementList of a Block, CaseClause, or DefaultClause Contained within body, do
         TRY(program.for_each_function_hoistable_with_annexB_extension([&](FunctionDeclaration& function_declaration) -> ThrowCompletionOr<void> {
@@ -911,7 +911,7 @@ ThrowCompletionOr<void> eval_declaration_instantiation(VM& vm, Program const& pr
     }
 
     // 12. Let declaredVarNames be a new empty List.
-    HashTable<DeprecatedFlyString> declared_var_names;
+    HashTable<FlyString> declared_var_names;
 
     // 13. For each element d of varDeclarations, do
     TRY(program.for_each_var_scoped_variable_declaration([&](VariableDeclaration const& declaration) {
@@ -1074,7 +1074,7 @@ Object* create_unmapped_arguments_object(VM& vm, ReadonlySpan<Value> arguments)
 }
 
 // 10.4.4.7 CreateMappedArgumentsObject ( func, formals, argumentsList, env ), https://tc39.es/ecma262/#sec-createmappedargumentsobject
-Object* create_mapped_arguments_object(VM& vm, FunctionObject& function, Vector<FunctionParameter> const& formals, ReadonlySpan<Value> arguments, Environment& environment)
+Object* create_mapped_arguments_object(VM& vm, FunctionObject& function, NonnullRefPtr<FunctionParameters const> const& formals, ReadonlySpan<Value> arguments, Environment& environment)
 {
     auto& realm = *vm.current_realm();
 
@@ -1109,14 +1109,14 @@ Object* create_mapped_arguments_object(VM& vm, FunctionObject& function, Vector<
     MUST(object->define_property_or_throw(vm.names.length, { .value = Value(length), .writable = true, .enumerable = false, .configurable = true }));
 
     // 17. Let mappedNames be a new empty List.
-    HashTable<DeprecatedFlyString> mapped_names;
+    HashTable<FlyString> mapped_names;
 
     // 18. Set index to numberOfParameters - 1.
     // 19. Repeat, while index ≥ 0,
-    VERIFY(formals.size() <= NumericLimits<i32>::max());
-    for (i32 index = static_cast<i32>(formals.size()) - 1; index >= 0; --index) {
+    VERIFY(formals->size() <= NumericLimits<i32>::max());
+    for (i32 index = static_cast<i32>(formals->size()) - 1; index >= 0; --index) {
         // a. Let name be parameterNames[index].
-        auto const& name = formals[index].binding.get<NonnullRefPtr<Identifier const>>()->string();
+        auto const& name = formals->parameters()[index].binding.get<NonnullRefPtr<Identifier const>>()->string();
 
         // b. If name is not an element of mappedNames, then
         if (mapped_names.contains(name))
@@ -1178,19 +1178,21 @@ CanonicalIndex canonical_numeric_index_string(PropertyKey const& property_key, C
     if (argument.is_empty())
         return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
     u32 current_index = 0;
-    if (argument.characters()[current_index] == '-') {
+    auto const* characters = argument.bytes_as_string_view().characters_without_null_termination();
+    auto const length = argument.bytes_as_string_view().length();
+    if (characters[current_index] == '-') {
         current_index++;
-        if (current_index == argument.length())
+        if (current_index == length)
             return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
     }
-    if (argument.characters()[current_index] == '0') {
+    if (characters[current_index] == '0') {
         current_index++;
-        if (current_index == argument.length())
+        if (current_index == length)
             return CanonicalIndex(CanonicalIndex::Type::Numeric, 0);
-        if (argument.characters()[current_index] != '.')
+        if (characters[current_index] != '.')
             return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
         current_index++;
-        if (current_index == argument.length())
+        if (current_index == length)
             return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
     }
 
@@ -1199,17 +1201,17 @@ CanonicalIndex canonical_numeric_index_string(PropertyKey const& property_key, C
         return CanonicalIndex(CanonicalIndex::Type::Numeric, 0);
 
     // Short circuit any string that doesn't start with digits
-    if (char first_non_zero = argument.characters()[current_index]; first_non_zero < '0' || first_non_zero > '9')
+    if (char first_non_zero = characters[current_index]; first_non_zero < '0' || first_non_zero > '9')
         return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
 
     // 2. Let n be ! ToNumber(argument).
-    auto maybe_double = argument.to_number<double>(AK::TrimWhitespace::No);
+    auto maybe_double = argument.bytes_as_string_view().to_number<double>(AK::TrimWhitespace::No);
     if (!maybe_double.has_value())
         return CanonicalIndex(CanonicalIndex::Type::Undefined, 0);
 
     // FIXME: We return 0 instead of n but it might not observable?
     // 3. If SameValue(! ToString(n), argument) is true, return n.
-    if (number_to_string(*maybe_double) == argument.view())
+    if (number_to_string(*maybe_double) == argument)
         return CanonicalIndex(CanonicalIndex::Type::Numeric, 0);
 
     // 4. Return undefined.
@@ -1363,7 +1365,7 @@ ThrowCompletionOr<String> get_substitution(VM& vm, Utf16View const& matched, Utf
 
                 // 2. Let groupName be the substring of templateRemainder from 2 to gtPos.
                 auto group_name_view = template_remainder.substring_view(2, *greater_than_position - 2);
-                auto group_name = MUST(group_name_view.to_byte_string(Utf16View::AllowInvalidCodeUnits::Yes));
+                auto group_name = MUST(group_name_view.to_utf8(Utf16View::AllowInvalidCodeUnits::Yes));
 
                 // 3. Assert: namedCaptures is an Object.
                 VERIFY(named_captures.is_object());
@@ -1544,7 +1546,7 @@ ThrowCompletionOr<GC::Ptr<FunctionObject>> get_dispose_method(VM& vm, Value valu
                 //    thrown synchronously.
 
                 // 3. Return CreateBuiltinFunction(closure, 0, "", « »).
-                return NativeFunction::create(realm, move(closure), 0, "");
+                return NativeFunction::create(realm, move(closure), 0);
             }
         }
     }
@@ -1724,7 +1726,7 @@ ThrowCompletionOr<Value> perform_import_call(VM& vm, Value specifier, Value opti
 
     // 8. Let specifierString be Completion(ToString(specifier)).
     // 9. IfAbruptRejectPromise(specifierString, promiseCapability).
-    auto specifier_string = TRY_OR_REJECT_WITH_VALUE(vm, promise_capability, specifier.to_byte_string(vm));
+    auto specifier_string = TRY_OR_REJECT_WITH_VALUE(vm, promise_capability, specifier.to_string(vm));
 
     // 10. Let attributes be a new empty List.
     Vector<ImportAttribute> attributes;
@@ -1780,7 +1782,7 @@ ThrowCompletionOr<Value> perform_import_call(VM& vm, Value specifier, Value opti
                 }
 
                 // 4. Append the ImportAttribute Record { [[Key]]: key, [[Value]]: value } to attributes.
-                attributes.empend(key.as_string().byte_string(), value.as_string().byte_string());
+                attributes.empend(key.as_string().utf8_string(), value.as_string().utf8_string());
             }
         }
 

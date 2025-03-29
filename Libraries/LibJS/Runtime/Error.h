@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <AK/DeprecatedFlyString.h>
 #include <AK/String.h>
 #include <LibJS/Runtime/Completion.h>
 #include <LibJS/Runtime/Object.h>
@@ -16,7 +15,7 @@
 namespace JS {
 
 struct TracebackFrame {
-    DeprecatedFlyString function_name;
+    FlyString function_name;
     [[nodiscard]] SourceRange const& source_range() const;
 
     RefPtr<CachedSourceRange> cached_source_range;
@@ -48,9 +47,14 @@ protected:
     explicit Error(Object& prototype);
 
 private:
+    virtual bool is_error() const final { return true; }
+
     void populate_stack();
     Vector<TracebackFrame, 32> m_traceback;
 };
+
+template<>
+inline bool Object::fast_is<Error>() const { return is_error(); }
 
 // NOTE: Making these inherit from Error is not required by the spec but
 //       our way of implementing the [[ErrorData]] internal slot, which is

@@ -46,6 +46,8 @@ public:
 
     static CookieJar& cookie_jar() { return *the().m_cookie_jar; }
 
+    static ProcessManager& process_manager() { return the().m_process_manager; }
+
     Core::EventLoop& event_loop() { return m_event_loop; }
 
     ErrorOr<NonnullRefPtr<WebContentClient>> launch_web_content_process(ViewImplementation&);
@@ -58,11 +60,6 @@ public:
     void set_process_mach_port(pid_t, Core::MachPort&&);
 #endif
     Optional<Process&> find_process(pid_t);
-
-    void send_updated_process_statistics_to_view(ViewImplementation&);
-
-    void send_current_settings_to_view(ViewImplementation&);
-    void send_available_search_engines_to_view(ViewImplementation&);
 
     ErrorOr<LexicalPath> path_for_downloaded_file(StringView file) const;
 
@@ -105,9 +102,9 @@ private:
     virtual void inspect_tab(DevTools::TabDescription const&, OnTabInspectionComplete) const override;
     virtual void listen_for_dom_properties(DevTools::TabDescription const&, OnDOMNodePropertiesReceived) const override;
     virtual void stop_listening_for_dom_properties(DevTools::TabDescription const&) const override;
-    virtual void inspect_dom_node(DevTools::TabDescription const&, DOMNodeProperties::Type, Web::UniqueNodeID, Optional<Web::CSS::Selector::PseudoElement::Type>) const override;
+    virtual void inspect_dom_node(DevTools::TabDescription const&, DOMNodeProperties::Type, Web::UniqueNodeID, Optional<Web::CSS::PseudoElement>) const override;
     virtual void clear_inspected_dom_node(DevTools::TabDescription const&) const override;
-    virtual void highlight_dom_node(DevTools::TabDescription const&, Web::UniqueNodeID, Optional<Web::CSS::Selector::PseudoElement::Type>) const override;
+    virtual void highlight_dom_node(DevTools::TabDescription const&, Web::UniqueNodeID, Optional<Web::CSS::PseudoElement>) const override;
     virtual void clear_highlighted_dom_node(DevTools::TabDescription const&) const override;
     virtual void listen_for_dom_mutations(DevTools::TabDescription const&, OnDOMMutationReceived) const override;
     virtual void stop_listening_for_dom_mutations(DevTools::TabDescription const&) const override;

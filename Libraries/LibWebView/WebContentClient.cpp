@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include "WebContentClient.h"
-#include "Application.h"
-#include "ViewImplementation.h"
 #include <LibWeb/Cookie/ParsedCookie.h>
+#include <LibWebView/Application.h>
 #include <LibWebView/CookieJar.h>
 #include <LibWebView/HelperProcess.h>
+#include <LibWebView/ViewImplementation.h>
+#include <LibWebView/WebContentClient.h>
+#include <LibWebView/WebUI.h>
 
 namespace WebView {
 
@@ -68,6 +69,11 @@ void WebContentClient::unregister_view(u64 page_id)
     }
 }
 
+void WebContentClient::web_ui_disconnected(Badge<WebUI>)
+{
+    m_web_ui.clear();
+}
+
 void WebContentClient::did_paint(u64 page_id, Gfx::IntRect rect, i32 bitmap_id)
 {
     if (auto view = view_for_page_id(page_id); view.has_value())
@@ -95,6 +101,13 @@ void WebContentClient::did_start_loading(u64 page_id, URL::URL url, bool is_redi
 
 void WebContentClient::did_finish_loading(u64 page_id, URL::URL url)
 {
+    if (url.scheme() == "about"sv && url.paths().size() == 1) {
+        if (auto web_ui = WebUI::create(*this, url.paths().first()); web_ui.is_error())
+            warnln("Could not create WebUI for {}: {}", url, web_ui.error());
+        else
+            m_web_ui = web_ui.release_value();
+    }
+
     if (auto view = view_for_page_id(page_id); view.has_value()) {
         view->set_url({}, url);
 
@@ -393,19 +406,11 @@ void WebContentClient::did_output_js_console_message(u64 page_id, i32 message_in
     }
 }
 
-void WebContentClient::did_get_styled_js_console_messages(u64 page_id, i32 start_index, Vector<String> message_types, Vector<String> messages)
+void WebContentClient::did_get_js_console_messages(u64 page_id, i32 start_index, Vector<ConsoleOutput> console_output)
 {
     if (auto view = view_for_page_id(page_id); view.has_value()) {
-        if (view->on_received_styled_console_messages)
-            view->on_received_styled_console_messages(start_index, message_types, messages);
-    }
-}
-
-void WebContentClient::did_get_unstyled_js_console_messages(u64 page_id, i32 start_index, Vector<ConsoleOutput> console_output)
-{
-    if (auto view = view_for_page_id(page_id); view.has_value()) {
-        if (view->on_received_unstyled_console_messages)
-            view->on_received_unstyled_console_messages(start_index, move(console_output));
+        if (view->on_received_console_messages)
+            view->on_received_console_messages(start_index, move(console_output));
     }
 }
 
@@ -662,45 +667,6 @@ Messages::WebContentClient::RequestWorkerAgentResponse WebContentClient::request
     }
 
     return IPC::File {};
-}
-
-void WebContentClient::update_process_statistics(u64 page_id)
-{
-    if (auto view = view_for_page_id(page_id); view.has_value())
-        WebView::Application::the().send_updated_process_statistics_to_view(*view);
-}
-
-void WebContentClient::request_current_settings(u64 page_id)
-{
-    if (auto view = view_for_page_id(page_id); view.has_value())
-        WebView::Application::the().send_current_settings_to_view(*view);
-}
-
-void WebContentClient::restore_default_settings(u64 page_id)
-{
-    WebView::Application::settings().restore_defaults();
-    request_current_settings(page_id);
-}
-
-void WebContentClient::set_new_tab_page_url(u64 page_id, URL::URL new_tab_page_url)
-{
-    WebView::Application::settings().set_new_tab_page_url(move(new_tab_page_url));
-    request_current_settings(page_id);
-}
-
-void WebContentClient::request_available_search_engines(u64 page_id)
-{
-    if (auto view = view_for_page_id(page_id); view.has_value())
-        WebView::Application::the().send_available_search_engines_to_view(*view);
-}
-
-void WebContentClient::set_search_engine(u64 page_id, Optional<String> search_engine)
-{
-    WebView::Application::settings().set_search_engine(search_engine.map([](auto const& search_engine) {
-        return search_engine.bytes_as_string_view();
-    }));
-
-    request_current_settings(page_id);
 }
 
 Optional<ViewImplementation&> WebContentClient::view_for_page_id(u64 page_id, SourceLocation location)

@@ -98,8 +98,7 @@ endpoint WebContentClient
 
     did_execute_js_console_input(u64 page_id, JsonValue result) =|
     did_output_js_console_message(u64 page_id, i32 message_index) =|
-    did_get_styled_js_console_messages(u64 page_id, i32 start_index, Vector<String> message_types, Vector<String> messages) =|
-    did_get_unstyled_js_console_messages(u64 page_id, i32 start_index, Vector<WebView::ConsoleOutput> console_output) =|
+    did_get_js_console_messages(u64 page_id, i32 start_index, Vector<WebView::ConsoleOutput> console_output) =|
 
     did_finish_test(u64 page_id, String text) =|
     did_set_test_timeout(u64 page_id, double milliseconds) =|
@@ -109,12 +108,4 @@ endpoint WebContentClient
     did_find_in_page(u64 page_id, size_t current_match_index, Optional<size_t> total_match_count) =|
 
     request_worker_agent(u64 page_id) => (IPC::File socket) // FIXME: Add required attributes to select a SharedWorker Agent
-
-    update_process_statistics(u64 page_id) =|
-
-    request_current_settings(u64 page_id) =|
-    restore_default_settings(u64 page_id) =|
-    set_new_tab_page_url(u64 page_id, URL::URL new_tab_page_url) =|
-    request_available_search_engines(u64 page_id) =|
-    set_search_engine(u64 page_id, Optional<String> search_engine) =|
 }

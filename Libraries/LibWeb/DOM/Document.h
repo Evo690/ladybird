@@ -25,7 +25,6 @@
 #include <LibWeb/CSS/CSSStyleSheet.h>
 #include <LibWeb/CSS/StyleSheetList.h>
 #include <LibWeb/Cookie/Cookie.h>
-#include <LibWeb/DOM/NonElementParentNode.h>
 #include <LibWeb/DOM/ParentNode.h>
 #include <LibWeb/HTML/BrowsingContext.h>
 #include <LibWeb/HTML/CrossOrigin/OpenerPolicy.h>
@@ -53,9 +52,6 @@ enum class QuirksMode {
 #define ENUMERATE_INVALIDATE_LAYOUT_TREE_REASONS(X)       \
     X(DocumentAddAnElementToTheTopLayer)                  \
     X(DocumentRequestAnElementToBeRemovedFromTheTopLayer) \
-    X(HTMLInputElementSrcAttributeChange)                 \
-    X(HTMLObjectElement)                                  \
-    X(SVGGraphicsElementTransformAttributeChange)         \
     X(ShadowRootSetInnerHTML)
 
 enum class InvalidateLayoutTreeReason {
@@ -161,7 +157,6 @@ enum class PolicyControlledFeature : u8 {
 
 class Document
     : public ParentNode
-    , public NonElementParentNode<Document>
     , public HTML::GlobalEventHandlers {
     WEB_PLATFORM_OBJECT(Document, ParentNode);
     GC_DECLARE_ALLOCATOR(Document);
@@ -265,7 +260,7 @@ public:
     void set_inspected_node(GC::Ptr<Node>);
     GC::Ptr<Node const> inspected_node() const { return m_inspected_node; }
 
-    void set_highlighted_node(GC::Ptr<Node>, Optional<CSS::Selector::PseudoElement::Type>);
+    void set_highlighted_node(GC::Ptr<Node>, Optional<CSS::PseudoElement>);
     GC::Ptr<Node const> highlighted_node() const { return m_highlighted_node; }
     GC::Ptr<Layout::Node> highlighted_layout_node();
     GC::Ptr<Layout::Node const> highlighted_layout_node() const { return const_cast<Document*>(this)->highlighted_layout_node(); }
@@ -745,7 +740,7 @@ public:
     GC::Ptr<HTML::SessionHistoryEntry> latest_entry() const { return m_latest_entry; }
     void set_latest_entry(GC::Ptr<HTML::SessionHistoryEntry> e) { m_latest_entry = e; }
 
-    void element_id_changed(Badge<DOM::Element>, GC::Ref<DOM::Element> element);
+    void element_id_changed(Badge<DOM::Element>, GC::Ref<DOM::Element> element, Optional<FlyString> old_id);
     void element_with_id_was_added(Badge<DOM::Element>, GC::Ref<DOM::Element> element);
     void element_with_id_was_removed(Badge<DOM::Element>, GC::Ref<DOM::Element> element);
     void element_name_changed(Badge<DOM::Element>, GC::Ref<DOM::Element> element);
@@ -898,6 +893,8 @@ public:
         m_pending_nodes_for_style_invalidation_due_to_presence_of_has.set(node.make_weak_ptr<Node>());
     }
 
+    ElementByIdMap& element_by_id() const;
+
 protected:
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;
@@ -955,6 +952,7 @@ private:
     GC::Ptr<Node> m_active_favicon;
     WeakPtr<HTML::BrowsingContext> m_browsing_context;
     URL::URL m_url;
+    mutable OwnPtr<ElementByIdMap> m_element_by_id;
 
     GC::Ptr<HTML::Window> m_window;
 
@@ -963,7 +961,7 @@ private:
     GC::Ptr<Node> m_hovered_node;
     GC::Ptr<Node> m_inspected_node;
     GC::Ptr<Node> m_highlighted_node;
-    Optional<CSS::Selector::PseudoElement::Type> m_highlighted_pseudo_element;
+    Optional<CSS::PseudoElement> m_highlighted_pseudo_element;
 
     Optional<Color> m_normal_link_color;
     Optional<Color> m_active_link_color;

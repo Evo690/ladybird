@@ -35,6 +35,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v9
         with:
           workflow: js-artifacts.yml
+          commit: ${{ github.sha }}
           name: ladybird-js-Linux-x86_64
           path: js-repl
 
@@ -58,4 +59,10 @@ jobs:
         with:
           name: js-benchmarks-results
           path: js-benchmarks/results.json
-          retention-days: 93
+          retention-days: 90
+
+      - name: 'Call webhook'
+        uses: distributhor/workflow-webhook@v3
+        with:
+          webhook_url: ${{ secrets.JS_BENCHMARKS_WEBHOOK_URL }}
+          webhook_secret: ${{ secrets.JS_BENCHMARKS_WEBHOOK_SECRET }}

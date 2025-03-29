@@ -198,6 +198,20 @@ void Intrinsics::initialize_intrinsics(Realm& realm)
     m_iterator_result_object_value_offset = m_iterator_result_object_shape->lookup(vm.names.value.to_string_or_symbol()).value().offset;
     m_iterator_result_object_done_offset = m_iterator_result_object_shape->lookup(vm.names.done.to_string_or_symbol()).value().offset;
 
+    m_normal_function_prototype_shape = heap().allocate<Shape>(realm);
+    m_normal_function_prototype_shape->set_prototype_without_transition(m_object_prototype);
+    m_normal_function_prototype_shape->add_property_without_transition(vm.names.constructor, Attribute::Writable | Attribute::Configurable);
+    m_normal_function_prototype_constructor_offset = m_normal_function_prototype_shape->lookup(vm.names.constructor.to_string_or_symbol()).value().offset;
+
+    m_normal_function_shape = heap().allocate<Shape>(realm);
+    m_normal_function_shape->set_prototype_without_transition(m_function_prototype);
+    m_normal_function_shape->add_property_without_transition(vm.names.length, Attribute::Configurable);
+    m_normal_function_shape->add_property_without_transition(vm.names.name, Attribute::Configurable);
+    m_normal_function_shape->add_property_without_transition(vm.names.prototype, Attribute::Writable);
+    m_normal_function_length_offset = m_normal_function_shape->lookup(vm.names.length.to_string_or_symbol()).value().offset;
+    m_normal_function_name_offset = m_normal_function_shape->lookup(vm.names.name.to_string_or_symbol()).value().offset;
+    m_normal_function_prototype_offset = m_normal_function_shape->lookup(vm.names.prototype.to_string_or_symbol()).value().offset;
+
     // Normally Realm::create() takes care of this, but these are allocated via Heap::allocate().
     m_function_prototype->initialize(realm);
     m_object_prototype->initialize(realm);
@@ -246,7 +260,7 @@ void Intrinsics::initialize_intrinsics(Realm& realm)
         realm, [](VM& vm) {
             return vm.throw_completion<TypeError>(ErrorType::RestrictedFunctionPropertiesAccess);
         },
-        0, "", &realm);
+        0, FlyString {}, &realm);
     m_throw_type_error_function->define_direct_property(vm.names.length, Value(0), 0);
     m_throw_type_error_function->define_direct_property(vm.names.name, PrimitiveString::create(vm, String {}), 0);
     MUST(m_throw_type_error_function->internal_prevent_extensions());
@@ -366,6 +380,8 @@ void Intrinsics::visit_edges(Visitor& visitor)
     visitor.visit(m_empty_object_shape);
     visitor.visit(m_new_object_shape);
     visitor.visit(m_iterator_result_object_shape);
+    visitor.visit(m_normal_function_prototype_shape);
+    visitor.visit(m_normal_function_shape);
     visitor.visit(m_proxy_constructor);
     visitor.visit(m_async_from_sync_iterator_prototype);
     visitor.visit(m_async_generator_prototype);

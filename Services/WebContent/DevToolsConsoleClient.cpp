@@ -101,8 +101,43 @@ void DevToolsConsoleClient::handle_result(JS::Value result)
 
 void DevToolsConsoleClient::report_exception(JS::Error const& exception, bool in_promise)
 {
-    (void)exception;
-    (void)in_promise;
+    auto& vm = exception.vm();
+
+    auto name = exception.get_without_side_effects(vm.names.name).value_or(JS::js_undefined());
+    auto message = exception.get_without_side_effects(vm.names.message).value_or(JS::js_undefined());
+
+    Vector<WebView::StackFrame> trace;
+    trace.ensure_capacity(exception.traceback().size());
+
+    for (auto const& frame : exception.traceback()) {
+        auto const& source_range = frame.source_range();
+        WebView::StackFrame stack_frame;
+
+        if (!frame.function_name.is_empty())
+            stack_frame.function = frame.function_name.to_string();
+
+        if (!source_range.filename().is_empty() || source_range.start.offset != 0 || source_range.end.offset != 0) {
+            stack_frame.file = String::from_utf8_with_replacement_character(source_range.filename());
+            stack_frame.line = source_range.start.line;
+            stack_frame.column = source_range.start.column;
+        }
+
+        if (stack_frame.function.has_value() || stack_frame.file.has_value())
+            trace.unchecked_append(move(stack_frame));
+    }
+
+    WebView::ConsoleOutput console_output {
+        .timestamp = UnixDateTime::now(),
+        .output = WebView::ConsoleError {
+            .name = name.to_string_without_side_effects(),
+            .message = message.to_string_without_side_effects(),
+            .trace = move(trace),
+            .inside_promise = in_promise,
+        },
+    };
+
+    m_console_output.append(move(console_output));
+    m_client->did_output_js_console_message(m_console_output.size() - 1);
 }
 
 void DevToolsConsoleClient::send_messages(i32 start_index)
@@ -115,7 +150,7 @@ void DevToolsConsoleClient::send_messages(i32 start_index)
         return;
     }
 
-    m_client->did_get_unstyled_js_console_messages(start_index, m_console_output.span().slice(start_index));
+    m_client->did_get_js_console_messages(start_index, m_console_output.span().slice(start_index));
 }
 
 // 2.3. Printer(logLevel, args[, options]), https://console.spec.whatwg.org/#printer
@@ -136,7 +171,15 @@ JS::ThrowCompletionOr<JS::Value> DevToolsConsoleClient::printer(JS::Console::Log
     for (auto value : argument_values)
         serialized_arguments.unchecked_append(serialize_js_value(m_console->realm(), value));
 
-    m_console_output.empend(log_level, UnixDateTime::now(), move(serialized_arguments));
+    WebView::ConsoleOutput console_output {
+        .timestamp = UnixDateTime::now(),
+        .output = WebView::ConsoleLog {
+            .level = log_level,
+            .arguments = move(serialized_arguments),
+        },
+    };
+
+    m_console_output.append(move(console_output));
     m_client->did_output_js_console_message(m_console_output.size() - 1);
 
     return JS::js_undefined();

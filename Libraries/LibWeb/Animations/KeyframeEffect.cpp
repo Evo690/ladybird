@@ -104,13 +104,13 @@ static WebIDL::ExceptionOr<KeyframeType<AL>> process_a_keyframe_like_object(JS::
         return keyframe_output;
 
     auto& keyframe_object = keyframe_input.as_object();
-    auto composite = TRY(keyframe_object.get("composite"));
+    auto composite = TRY(keyframe_object.get("composite"_fly_string));
     if (composite.is_undefined())
         composite = JS::PrimitiveString::create(vm, "auto"_string);
-    auto easing = TRY(keyframe_object.get("easing"));
+    auto easing = TRY(keyframe_object.get("easing"_fly_string));
     if (easing.is_undefined())
         easing = JS::PrimitiveString::create(vm, "linear"_string);
-    auto offset = TRY(keyframe_object.get("offset"));
+    auto offset = TRY(keyframe_object.get("offset"_fly_string));
 
     if constexpr (AL == AllowLists::Yes) {
         keyframe_output.composite = TRY(convert_value_to_maybe_list(realm, composite, to_composite_operation));
@@ -185,7 +185,7 @@ static WebIDL::ExceptionOr<KeyframeType<AL>> process_a_keyframe_like_object(JS::
         // 1. Let raw value be the result of calling the [[Get]] internal method on keyframe input, with property name
         //    as the property key and keyframe input as the receiver.
         // 2. Check the completion record of raw value.
-        JS::PropertyKey key { property_name.to_byte_string(), JS::PropertyKey::StringMayBeNumber::No };
+        JS::PropertyKey key { property_name, JS::PropertyKey::StringMayBeNumber::No };
         auto raw_value = TRY(keyframe_object.has_property(key)) ? TRY(keyframe_object.get(key)) : *all_value;
 
         using PropertyValuesType = Conditional<AL == AllowLists::Yes, Vector<String>, String>;
@@ -778,7 +778,7 @@ Optional<String> KeyframeEffect::pseudo_element() const
 {
     if (!m_target_pseudo_selector.has_value())
         return {};
-    return MUST(String::formatted("::{}", m_target_pseudo_selector->name()));
+    return m_target_pseudo_selector->serialize();
 }
 
 // https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-pseudoelement
@@ -791,7 +791,7 @@ WebIDL::ExceptionOr<void> KeyframeEffect::set_pseudo_element(Optional<String> va
     return {};
 }
 
-Optional<CSS::Selector::PseudoElement::Type> KeyframeEffect::pseudo_element_type() const
+Optional<CSS::PseudoElement> KeyframeEffect::pseudo_element_type() const
 {
     if (!m_target_pseudo_selector.has_value())
         return {};
@@ -827,7 +827,7 @@ WebIDL::ExceptionOr<GC::RootVector<JS::Object*>> KeyframeEffect::get_keyframes()
 
             for (auto const& [id, value] : keyframe.parsed_properties()) {
                 auto value_string = JS::PrimitiveString::create(vm, value->to_string(CSS::CSSStyleValue::SerializationMode::Normal));
-                TRY(object->set(JS::PropertyKey { DeprecatedFlyString(CSS::camel_case_string_from_property_id(id)), JS::PropertyKey::StringMayBeNumber::No }, value_string, ShouldThrowExceptions::Yes));
+                TRY(object->set(JS::PropertyKey { CSS::camel_case_string_from_property_id(id), JS::PropertyKey::StringMayBeNumber::No }, value_string, ShouldThrowExceptions::Yes));
             }
 
             m_keyframe_objects.append(object);

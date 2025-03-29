@@ -10,6 +10,7 @@
 #include <LibWeb/DOM/EventTarget.h>
 #include <LibWeb/IndexedDB/IDBDatabase.h>
 #include <LibWeb/IndexedDB/IDBRequest.h>
+#include <LibWeb/IndexedDB/Internal/ObjectStore.h>
 #include <LibWeb/StorageAPI/StorageKey.h>
 
 namespace Web::IndexedDB {
@@ -39,6 +40,14 @@ public:
         return connections;
     }
 
+    ReadonlySpan<GC::Ref<ObjectStore>> object_stores() { return m_object_stores; }
+    GC::Ptr<ObjectStore> object_store_with_name(String const& name) const;
+    void add_object_store(GC::Ref<ObjectStore> object_store) { m_object_stores.append(object_store); }
+    void remove_object_store(GC::Ref<ObjectStore> object_store)
+    {
+        m_object_stores.remove_first_matching([&](auto& entry) { return entry == object_store; });
+    }
+
     [[nodiscard]] static Vector<GC::Root<Database>> for_key(StorageAPI::StorageKey const&);
     [[nodiscard]] static Optional<GC::Root<Database> const&> for_key_and_name(StorageAPI::StorageKey&, String&);
     [[nodiscard]] static ErrorOr<GC::Root<Database>> create_for_key_and_name(JS::Realm&, StorageAPI::StorageKey&, String&);
@@ -61,8 +70,6 @@ protected:
 private:
     Vector<GC::Ref<IDBDatabase>> m_associated_connections;
 
-    // FIXME: A database has zero or more object stores which hold the data stored in the database.
-
     // A database has a name which identifies it within a specific storage key.
     String m_name;
 
@@ -71,6 +78,9 @@ private:
 
     // A database has at most one associated upgrade transaction, which is either null or an upgrade transaction, and is initially null.
     GC::Ptr<IDBTransaction> m_upgrade_transaction;
+
+    // A database has zero or more object stores which hold the data stored in the database.
+    Vector<GC::Ref<ObjectStore>> m_object_stores;
 };
 
 }

@@ -294,9 +294,9 @@ static JS::ThrowCompletionOr<JS::Value> load_ini_impl(JS::VM& vm)
         auto group_object = JS::Object::create(realm, realm.intrinsics().object_prototype());
         for (auto const& key : config_file->keys(group)) {
             auto entry = config_file->read_entry(group, key);
-            group_object->define_direct_property(key, JS::PrimitiveString::create(vm, move(entry)), JS::Attribute::Enumerable | JS::Attribute::Configurable | JS::Attribute::Writable);
+            group_object->define_direct_property(MUST(String::from_byte_string(key)), JS::PrimitiveString::create(vm, move(entry)), JS::Attribute::Enumerable | JS::Attribute::Configurable | JS::Attribute::Writable);
         }
-        object->define_direct_property(group, group_object, JS::Attribute::Enumerable | JS::Attribute::Configurable | JS::Attribute::Writable);
+        object->define_direct_property(MUST(String::from_byte_string(group)), group_object, JS::Attribute::Enumerable | JS::Attribute::Configurable | JS::Attribute::Writable);
     }
     return object;
 }
@@ -323,18 +323,18 @@ void ReplObject::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
 
-    define_direct_property("global", this, JS::Attribute::Enumerable);
+    define_direct_property("global"_fly_string, this, JS::Attribute::Enumerable);
     u8 attr = JS::Attribute::Configurable | JS::Attribute::Writable | JS::Attribute::Enumerable;
-    define_native_function(realm, "exit", exit_interpreter, 0, attr);
-    define_native_function(realm, "help", repl_help, 0, attr);
-    define_native_function(realm, "save", save_to_file, 1, attr);
-    define_native_function(realm, "loadINI", load_ini, 1, attr);
-    define_native_function(realm, "loadJSON", load_json, 1, attr);
-    define_native_function(realm, "print", print, 1, attr);
+    define_native_function(realm, "exit"_fly_string, exit_interpreter, 0, attr);
+    define_native_function(realm, "help"_fly_string, repl_help, 0, attr);
+    define_native_function(realm, "save"_fly_string, save_to_file, 1, attr);
+    define_native_function(realm, "loadINI"_fly_string, load_ini, 1, attr);
+    define_native_function(realm, "loadJSON"_fly_string, load_json, 1, attr);
+    define_native_function(realm, "print"_fly_string, print, 1, attr);
 
     define_native_accessor(
         realm,
-        "_",
+        "_"_fly_string,
         [](JS::VM&) {
             return g_last_value.value();
         },
@@ -410,11 +410,11 @@ void ScriptObject::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
 
-    define_direct_property("global", this, JS::Attribute::Enumerable);
+    define_direct_property("global"_fly_string, this, JS::Attribute::Enumerable);
     u8 attr = JS::Attribute::Configurable | JS::Attribute::Writable | JS::Attribute::Enumerable;
-    define_native_function(realm, "loadINI", load_ini, 1, attr);
-    define_native_function(realm, "loadJSON", load_json, 1, attr);
-    define_native_function(realm, "print", print, 1, attr);
+    define_native_function(realm, "loadINI"_fly_string, load_ini, 1, attr);
+    define_native_function(realm, "loadJSON"_fly_string, load_json, 1, attr);
+    define_native_function(realm, "print"_fly_string, print, 1, attr);
 }
 
 JS_DEFINE_NATIVE_FUNCTION(ScriptObject::load_ini)
@@ -692,8 +692,8 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                 CompleteProperty,
             } mode { Initial };
 
-            StringView variable_name;
-            StringView property_name;
+            FlyString variable_name;
+            FlyString property_name;
 
             // we're only going to complete either
             //    - <N>
@@ -720,7 +720,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                     if (js_token.is_identifier_name()) {
                         // ...<name> <dot> <name>
                         mode = CompleteProperty;
-                        property_name = js_token.value();
+                        property_name = js_token.fly_string_value();
                     } else {
                         mode = Initial;
                     }
@@ -731,7 +731,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                     if (js_token.type() == JS::TokenType::Identifier) {
                         // ...<name>...
                         mode = CompleteVariable;
-                        variable_name = js_token.value();
+                        variable_name = js_token.fly_string_value();
                     } else {
                         mode = Initial;
                     }
@@ -743,7 +743,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 
             if (mode == CompleteNullProperty) {
                 mode = CompleteProperty;
-                property_name = ""sv;
+                property_name = ""_fly_string;
                 last_token_has_trivia = false; // <name> <dot> [tab] is sensible to complete.
             }
 
@@ -757,10 +757,10 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                     if (!descriptor.key.is_string())
                         continue;
                     auto key = descriptor.key.as_string();
-                    if (key.view().starts_with(property_pattern)) {
+                    if (key.bytes_as_string_view().starts_with(property_pattern)) {
                         Line::CompletionSuggestion completion { key, Line::CompletionSuggestion::ForSearch };
                         if (!results.contains_slow(completion)) { // hide duplicates
-                            results.append(ByteString(key));
+                            results.append(key.to_string().to_byte_string());
                             results.last().invariant_offset = property_pattern.length();
                         }
                     }
@@ -794,9 +794,9 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                 list_all_properties(variable.shape(), variable_name);
 
                 for (auto const& name : global_environment.declarative_record().bindings()) {
-                    if (name.starts_with(variable_name)) {
-                        results.empend(name);
-                        results.last().invariant_offset = variable_name.length();
+                    if (name.bytes_as_string_view().starts_with(variable_name)) {
+                        results.empend(name.to_deprecated_fly_string());
+                        results.last().invariant_offset = variable_name.bytes().size();
                     }
                 }
 

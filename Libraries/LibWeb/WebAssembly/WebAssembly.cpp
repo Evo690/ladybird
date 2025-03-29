@@ -172,7 +172,7 @@ JS::ThrowCompletionOr<NonnullOwnPtr<Wasm::ModuleInstance>> instantiate_module(JS
         for (Wasm::Linker::Name const& import_name : linker.unresolved_imports()) {
             dbgln_if(LIBWEB_WASM_DEBUG, "Trying to resolve {}::{}", import_name.module, import_name.name);
             // 3.1. Let o be ? Get(importObject, moduleName).
-            auto value_or_error = import_object->get(import_name.module);
+            auto value_or_error = import_object->get(MUST(String::from_byte_string(import_name.module)));
             if (value_or_error.is_error())
                 break;
             auto value = value_or_error.release_value();
@@ -182,7 +182,7 @@ JS::ThrowCompletionOr<NonnullOwnPtr<Wasm::ModuleInstance>> instantiate_module(JS
                 break;
             auto object = object_or_error.release_value();
             // 3.3. Let v be ? Get(o, componentName).
-            auto import_or_error = object->get(import_name.name);
+            auto import_or_error = object->get(MUST(String::from_byte_string(import_name.name)));
             if (import_or_error.is_error())
                 break;
             auto import_ = import_or_error.release_value();
@@ -372,7 +372,7 @@ JS::ThrowCompletionOr<NonnullRefPtr<CompiledWebAssemblyModule>> compile_a_webass
 
 GC_DEFINE_ALLOCATOR(ExportedWasmFunction);
 
-GC::Ref<ExportedWasmFunction> ExportedWasmFunction::create(JS::Realm& realm, DeprecatedFlyString const& name, Function<JS::ThrowCompletionOr<JS::Value>(JS::VM&)> behavior, Wasm::FunctionAddress exported_address)
+GC::Ref<ExportedWasmFunction> ExportedWasmFunction::create(JS::Realm& realm, FlyString const& name, Function<JS::ThrowCompletionOr<JS::Value>(JS::VM&)> behavior, Wasm::FunctionAddress exported_address)
 {
     auto& vm = realm.vm();
     auto prototype = realm.intrinsics().function_prototype();
@@ -383,13 +383,13 @@ GC::Ref<ExportedWasmFunction> ExportedWasmFunction::create(JS::Realm& realm, Dep
         prototype);
 }
 
-ExportedWasmFunction::ExportedWasmFunction(DeprecatedFlyString name, GC::Ptr<GC::Function<JS::ThrowCompletionOr<JS::Value>(JS::VM&)>> behavior, Wasm::FunctionAddress exported_address, JS::Object& prototype)
+ExportedWasmFunction::ExportedWasmFunction(FlyString name, GC::Ptr<GC::Function<JS::ThrowCompletionOr<JS::Value>(JS::VM&)>> behavior, Wasm::FunctionAddress exported_address, JS::Object& prototype)
     : NativeFunction(move(name), move(behavior), prototype)
     , m_exported_address(exported_address)
 {
 }
 
-JS::NativeFunction* create_native_function(JS::VM& vm, Wasm::FunctionAddress address, ByteString const& name, Instance* instance)
+JS::NativeFunction* create_native_function(JS::VM& vm, Wasm::FunctionAddress address, String const& name, Instance* instance)
 {
     auto& realm = *vm.current_realm();
     Optional<Wasm::FunctionType> type;
@@ -545,7 +545,7 @@ JS::Value to_js_value(JS::VM& vm, Wasm::Value& wasm_value, Wasm::ValueType type)
             [](Wasm::HostFunction& host_function) {
                 return host_function.name();
             });
-        return create_native_function(vm, address, name);
+        return create_native_function(vm, address, MUST(String::from_byte_string(name)));
     }
     case Wasm::ValueType::ExternReference: {
         auto ref_ = wasm_value.to<Wasm::Reference>();
@@ -674,8 +674,8 @@ GC::Ref<WebIDL::Promise> instantiate_promise_of_module(JS::VM& vm, GC::Ref<WebID
 
             // 1. Let result be the WebAssemblyInstantiatedSource value «[ "module" → module, "instance" → instance ]».
             auto result = JS::Object::create(realm, nullptr);
-            result->define_direct_property("module", module, JS::default_attributes);
-            result->define_direct_property("instance", instance, JS::default_attributes);
+            result->define_direct_property("module"_fly_string, module, JS::default_attributes);
+            result->define_direct_property("instance"_fly_string, instance, JS::default_attributes);
 
             // 2. Resolve promise with result.
             WebIDL::resolve_promise(realm, promise, result);

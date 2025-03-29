@@ -183,6 +183,7 @@ set(SOURCES
     CSS/StyleValues/StyleValueList.cpp
     CSS/StyleValues/TransformationStyleValue.cpp
     CSS/StyleValues/TransitionStyleValue.cpp
+    CSS/StyleValues/UnicodeRangeStyleValue.cpp
     CSS/StyleValues/UnresolvedStyleValue.cpp
     CSS/Supports.cpp
     CSS/SyntaxHighlighter/SyntaxHighlighter.cpp
@@ -214,6 +215,7 @@ set(SOURCES
     DOM/DocumentType.cpp
     DOM/EditingHostManager.cpp
     DOM/Element.cpp
+    DOM/ElementByIdMap.cpp
     DOM/ElementFactory.cpp
     DOM/Event.cpp
     DOM/EventDispatcher.cpp
@@ -312,6 +314,7 @@ set(SOURCES
     HTML/AudioTrack.cpp
     HTML/AudioTrackList.cpp
     HTML/AutocompleteElement.cpp
+    HTML/BarProp.cpp
     HTML/BeforeUnloadEvent.cpp
     HTML/BroadcastChannel.cpp
     HTML/BrowsingContext.cpp
@@ -559,12 +562,12 @@ set(SOURCES
     IndexedDB/Internal/Algorithms.cpp
     IndexedDB/Internal/Database.cpp
     IndexedDB/Internal/Key.cpp
+    IndexedDB/Internal/ObjectStore.cpp
     IndexedDB/Internal/RequestList.cpp
     Internals/InternalAnimationTimeline.cpp
     Internals/Internals.cpp
     Internals/InternalsBase.cpp
-    Internals/Processes.cpp
-    Internals/Settings.cpp
+    Internals/WebUI.cpp
     IntersectionObserver/IntersectionObserver.cpp
     IntersectionObserver/IntersectionObserverEntry.cpp
     Layout/AudioBox.cpp
@@ -956,6 +959,7 @@ set(GENERATED_SOURCES
     CSS/MediaFeatureID.cpp
     CSS/PropertyID.cpp
     CSS/PseudoClass.cpp
+    CSS/PseudoElement.cpp
     CSS/QuirksModeStyleSheetSource.cpp
     CSS/TransformFunctions.cpp
     MathML/MathMLStyleSheetSource.cpp

@@ -190,6 +190,12 @@ public:
 
     virtual bool is_dom_node() const { return false; }
     virtual bool is_function() const { return false; }
+    virtual bool is_error() const { return false; }
+    virtual bool is_date() const { return false; }
+    virtual bool is_number_object() const { return false; }
+    virtual bool is_boolean_object() const { return false; }
+    virtual bool is_regexp_object() const { return false; }
+    virtual bool is_bigint_object() const { return false; }
     virtual bool is_string_object() const { return false; }
     virtual bool is_global_object() const { return false; }
     virtual bool is_proxy_object() const { return false; }
@@ -239,6 +245,8 @@ protected:
     Object(Realm&, Object* prototype, MayInterfereWithIndexedPropertyAccess = MayInterfereWithIndexedPropertyAccess::No);
     Object(ConstructWithPrototypeTag, Object& prototype, MayInterfereWithIndexedPropertyAccess = MayInterfereWithIndexedPropertyAccess::No);
     explicit Object(Shape&, MayInterfereWithIndexedPropertyAccess = MayInterfereWithIndexedPropertyAccess::No);
+
+    void unsafe_set_shape(Shape&);
 
     // [[Extensible]]
     bool m_is_extensible { true };

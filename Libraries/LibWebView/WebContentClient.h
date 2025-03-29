@@ -47,6 +47,8 @@ public:
     void register_view(u64 page_id, ViewImplementation&);
     void unregister_view(u64 page_id);
 
+    void web_ui_disconnected(Badge<WebUI>);
+
     Function<void()> on_web_content_process_crash;
 
     pid_t pid() const { return m_process_handle.pid; }
@@ -89,8 +91,7 @@ private:
     virtual void did_get_internal_page_info(u64 page_id, PageInfoType, String) override;
     virtual void did_execute_js_console_input(u64 page_id, JsonValue) override;
     virtual void did_output_js_console_message(u64 page_id, i32 message_index) override;
-    virtual void did_get_styled_js_console_messages(u64 page_id, i32 start_index, Vector<String> message_types, Vector<String> messages) override;
-    virtual void did_get_unstyled_js_console_messages(u64 page_id, i32 start_index, Vector<ConsoleOutput>) override;
+    virtual void did_get_js_console_messages(u64 page_id, i32 start_index, Vector<ConsoleOutput>) override;
     virtual void did_change_favicon(u64 page_id, Gfx::ShareableBitmap) override;
     virtual void did_request_alert(u64 page_id, String) override;
     virtual void did_request_confirm(u64 page_id, String) override;
@@ -129,12 +130,6 @@ private:
     virtual void did_update_navigation_buttons_state(u64 page_id, bool back_enabled, bool forward_enabled) override;
     virtual void did_allocate_backing_stores(u64 page_id, i32 front_bitmap_id, Gfx::ShareableBitmap, i32 back_bitmap_id, Gfx::ShareableBitmap) override;
     virtual Messages::WebContentClient::RequestWorkerAgentResponse request_worker_agent(u64 page_id) override;
-    virtual void update_process_statistics(u64 page_id) override;
-    virtual void request_current_settings(u64 page_id) override;
-    virtual void restore_default_settings(u64 page_id) override;
-    virtual void set_new_tab_page_url(u64 page_id, URL::URL new_tab_page_url) override;
-    virtual void request_available_search_engines(u64 page_id) override;
-    virtual void set_search_engine(u64 page_id, Optional<String> search_engine) override;
 
     Optional<ViewImplementation&> view_for_page_id(u64, SourceLocation = SourceLocation::current());
 
@@ -142,6 +137,8 @@ private:
     HashMap<u64, ViewImplementation*> m_views;
 
     ProcessHandle m_process_handle;
+
+    RefPtr<WebUI> m_web_ui;
 
     static HashTable<WebContentClient*> s_clients;
 };

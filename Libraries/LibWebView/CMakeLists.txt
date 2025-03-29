@@ -24,6 +24,9 @@ set(SOURCES
     Utilities.cpp
     ViewImplementation.cpp
     WebContentClient.cpp
+    WebUI.cpp
+    WebUI/ProcessesUI.cpp
+    WebUI/SettingsUI.cpp
 )
 
 if (APPLE)
@@ -69,6 +72,8 @@ set(GENERATED_SOURCES
     ../../Services/WebContent/WebContentServerEndpoint.h
     ../../Services/WebContent/WebDriverClientEndpoint.h
     ../../Services/WebContent/WebDriverServerEndpoint.h
+    ../../Services/WebContent/WebUIClientEndpoint.h
+    ../../Services/WebContent/WebUIServerEndpoint.h
     NativeStyleSheetSource.cpp
     UIProcessClientEndpoint.h
     UIProcessServerEndpoint.h

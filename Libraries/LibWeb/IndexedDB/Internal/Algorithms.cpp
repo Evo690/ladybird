@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/QuickSort.h>
 #include <LibJS/Runtime/AbstractOperations.h>
 #include <LibJS/Runtime/Array.h>
 #include <LibJS/Runtime/ArrayBuffer.h>
@@ -20,6 +21,7 @@
 #include <LibWeb/IndexedDB/Internal/Algorithms.h>
 #include <LibWeb/IndexedDB/Internal/ConnectionQueueHandler.h>
 #include <LibWeb/IndexedDB/Internal/Database.h>
+#include <LibWeb/Infra/Strings.h>
 #include <LibWeb/StorageAPI/StorageKey.h>
 #include <LibWeb/WebIDL/AbstractOperations.h>
 #include <LibWeb/WebIDL/Buffers.h>
@@ -120,7 +122,8 @@ WebIDL::ExceptionOr<GC::Ref<IDBDatabase>> open_a_database_connection(JS::Realm& 
         }));
 
         // 6. Run upgrade a database using connection, version and request.
-        upgrade_a_database(realm, connection, version, request);
+        // AD-HOC: https://github.com/w3c/IndexedDB/issues/433#issuecomment-2512330086
+        auto upgrade_transaction = upgrade_a_database(realm, connection, version, request);
 
         // 7. If connection was closed, return a newly created "AbortError" DOMException and abort these steps.
         if (connection->state() == IDBDatabase::ConnectionState::Closed) {
@@ -129,8 +132,7 @@ WebIDL::ExceptionOr<GC::Ref<IDBDatabase>> open_a_database_connection(JS::Realm& 
 
         // 8. If the upgrade transaction was aborted, run the steps to close a database connection with connection,
         //    return a newly created "AbortError" DOMException and abort these steps.
-        auto transaction = connection->associated_database()->upgrade_transaction();
-        if (transaction->aborted()) {
+        if (upgrade_transaction->aborted()) {
             close_a_database_connection(*connection, true);
             return WebIDL::AbortError::create(realm, "Upgrade transaction was aborted"_string);
         }
@@ -304,7 +306,7 @@ void close_a_database_connection(IDBDatabase& connection, bool forced)
 }
 
 // https://w3c.github.io/IndexedDB/#upgrade-a-database
-void upgrade_a_database(JS::Realm& realm, GC::Ref<IDBDatabase> connection, u64 version, GC::Ref<IDBRequest> request)
+GC::Ref<IDBTransaction> upgrade_a_database(JS::Realm& realm, GC::Ref<IDBDatabase> connection, u64 version, GC::Ref<IDBRequest> request)
 {
     // 1. Let db be connection’s database.
     auto db = connection->associated_database();
@@ -349,12 +351,14 @@ void upgrade_a_database(JS::Realm& realm, GC::Ref<IDBDatabase> connection, u64 v
         transaction->set_state(IDBTransaction::TransactionState::Active);
 
         // 5. Let didThrow be the result of firing a version change event named upgradeneeded at request with old version and version.
-        [[maybe_unused]] auto did_throw = fire_a_version_change_event(realm, HTML::EventNames::upgradeneeded, request, old_version, version);
+        auto did_throw = fire_a_version_change_event(realm, HTML::EventNames::upgradeneeded, request, old_version, version);
 
         // 6. Set transaction’s state to inactive.
         transaction->set_state(IDBTransaction::TransactionState::Inactive);
 
-        // FIXME: 7. If didThrow is true, run abort a transaction with transaction and a newly created "AbortError" DOMException.
+        // 7. If didThrow is true, run abort a transaction with transaction and a newly created "AbortError" DOMException.
+        if (did_throw)
+            abort_a_transaction(*transaction, WebIDL::AbortError::create(realm, "Version change event threw an exception"_string));
 
         wait_for_transaction = false;
     }));
@@ -363,6 +367,8 @@ void upgrade_a_database(JS::Realm& realm, GC::Ref<IDBDatabase> connection, u64 v
     HTML::main_thread_event_loop().spin_until(GC::create_function(realm.vm().heap(), [&wait_for_transaction]() {
         return !wait_for_transaction;
     }));
+
+    return transaction;
 }
 
 // https://w3c.github.io/IndexedDB/#deleting-a-database
@@ -583,6 +589,50 @@ JS::Value convert_a_key_to_a_value(JS::Realm& realm, GC::Ref<Key> key)
     }
 
     VERIFY_NOT_REACHED();
+}
+
+// https://w3c.github.io/IndexedDB/#valid-key-path
+bool is_valid_key_path(KeyPath const& path)
+{
+    // A valid key path is one of:
+    return path.visit(
+        [](String const& value) -> bool {
+            // * An empty string.
+            if (value.is_empty())
+                return true;
+
+            // FIXME: * An identifier, which is a string matching the IdentifierName production from the ECMAScript Language Specification [ECMA-262].
+            return true;
+
+            // FIXME: * A string consisting of two or more identifiers separated by periods (U+002E FULL STOP).
+            return true;
+
+            return false;
+        },
+        [](Vector<String> const& values) -> bool {
+            // * A non-empty list containing only strings conforming to the above requirements.
+            if (values.is_empty())
+                return false;
+
+            for (auto const& value : values) {
+                if (!is_valid_key_path(value))
+                    return false;
+            }
+
+            return true;
+        });
+}
+
+// https://w3c.github.io/IndexedDB/#create-a-sorted-name-list
+GC::Ref<HTML::DOMStringList> create_a_sorted_name_list(JS::Realm& realm, Vector<String> names)
+{
+    // 1. Let sorted be names sorted in ascending order with the code unit less than algorithm.
+    quick_sort(names, [](auto const& a, auto const& b) {
+        return Infra::code_unit_less_than(a, b);
+    });
+
+    // 2. Return a new DOMStringList associated with sorted.
+    return HTML::DOMStringList::create(realm, names);
 }
 
 }

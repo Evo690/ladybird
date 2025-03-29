@@ -18,6 +18,7 @@
 #include <AK/Vector.h>
 #include <AK/WeakPtr.h>
 #include <LibGfx/Color.h>
+#include <LibJS/Heap/Cell.h>
 #include <LibURL/URL.h>
 #include <LibWeb/CSS/Keyword.h>
 #include <LibWeb/CSS/Length.h>
@@ -132,6 +133,7 @@ public:
         Time,
         Transformation,
         Transition,
+        UnicodeRange,
         Unresolved,
         URL,
         ValueList,
@@ -330,6 +332,10 @@ public:
     TransitionStyleValue const& as_transition() const;
     TransitionStyleValue& as_transition() { return const_cast<TransitionStyleValue&>(const_cast<CSSStyleValue const&>(*this).as_transition()); }
 
+    bool is_unicode_range() const { return type() == Type::UnicodeRange; }
+    UnicodeRangeStyleValue const& as_unicode_range() const;
+    UnicodeRangeStyleValue& as_unicode_range() { return const_cast<UnicodeRangeStyleValue&>(const_cast<CSSStyleValue const&>(*this).as_unicode_range()); }
+
     bool is_unresolved() const { return type() == Type::Unresolved; }
     UnresolvedStyleValue const& as_unresolved() const;
     UnresolvedStyleValue& as_unresolved() { return const_cast<UnresolvedStyleValue&>(const_cast<CSSStyleValue const&>(*this).as_unresolved()); }
@@ -368,6 +374,8 @@ public:
     [[nodiscard]] int to_font_weight() const;
     [[nodiscard]] int to_font_slope() const;
     [[nodiscard]] int to_font_width() const;
+
+    virtual void visit_edges(JS::Cell::Visitor&) const { }
 
     virtual bool equals(CSSStyleValue const& other) const = 0;
 

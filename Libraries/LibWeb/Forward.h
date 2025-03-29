@@ -265,6 +265,7 @@ class TimeStyleValue;
 class Transformation;
 class TransformationStyleValue;
 class TransitionStyleValue;
+class UnicodeRangeStyleValue;
 class UnresolvedStyleValue;
 class URLStyleValue;
 class VisualViewport;
@@ -311,6 +312,7 @@ class DOMImplementation;
 class DOMTokenList;
 class EditingHostManager;
 class Element;
+class ElementByIdMap;
 class Event;
 class EventHandler;
 class EventTarget;
@@ -415,6 +417,7 @@ namespace Web::HTML {
 class AnimationFrameCallbackDriver;
 class AudioTrack;
 class AudioTrackList;
+class BarProp;
 class BeforeUnloadEvent;
 class BroadcastChannel;
 class BrowsingContext;
@@ -619,12 +622,13 @@ class IDBOpenDBRequest;
 class IDBRequest;
 class IDBTransaction;
 class IDBVersionChangeEvent;
+class ObjectStore;
 class RequestList;
 }
 
 namespace Web::Internals {
 class Internals;
-class Processes;
+class WebUI;
 }
 
 namespace Web::IntersectionObserver {

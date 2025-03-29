@@ -99,7 +99,7 @@ void dump_tree(StringBuilder& builder, DOM::Node const& node)
         if (element.use_pseudo_element().has_value()) {
             for (int i = 0; i < indent; ++i)
                 builder.append("  "sv);
-            builder.appendff("  (pseudo-element: {})\n", CSS::Selector::PseudoElement::name(element.use_pseudo_element().value()));
+            builder.appendff("  (pseudo-element: {})\n", CSS::pseudo_element_name(element.use_pseudo_element().value()));
         }
     } else if (is<DOM::Text>(node)) {
         builder.appendff("\"{}\"\n", as<DOM::Text>(node).data());
@@ -586,7 +586,19 @@ void dump_selector(StringBuilder& builder, CSS::Selector const& selector, int in
             }
 
             if (simple_selector.type == CSS::Selector::SimpleSelector::Type::PseudoElement) {
-                builder.appendff(" pseudo_element={}", simple_selector.pseudo_element().name());
+                auto const& pseudo_element = simple_selector.pseudo_element();
+                builder.appendff(" pseudo_element={}", CSS::pseudo_element_name(pseudo_element.type()));
+                auto pseudo_element_metadata = CSS::pseudo_element_metadata(pseudo_element.type());
+
+                switch (pseudo_element_metadata.parameter_type) {
+                case CSS::PseudoElementMetadata::ParameterType::None:
+                    break;
+                case CSS::PseudoElementMetadata::ParameterType::PTNameSelector: {
+                    auto const& [is_universal, value] = pseudo_element.pt_name_selector();
+                    builder.appendff("(is_universal={}, value='{}')", is_universal, value);
+                    break;
+                }
+                }
             }
 
             if (simple_selector.type == CSS::Selector::SimpleSelector::Type::Attribute) {
@@ -715,7 +727,7 @@ void dump_font_face_rule(StringBuilder& builder, CSS::CSSFontFaceRule const& rul
         if (source.local_or_url.has<URL::URL>())
             builder.appendff("url={}, format={}\n", source.local_or_url.get<URL::URL>(), source.format.value_or("???"_string));
         else
-            builder.appendff("local={}\n", source.local_or_url.get<AK::String>());
+            builder.appendff("local={}\n", source.local_or_url.get<FlyString>());
     }
 
     indent(builder, indent_levels + 1);

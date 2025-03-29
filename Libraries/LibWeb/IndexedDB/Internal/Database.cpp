@@ -26,6 +26,17 @@ void Database::visit_edges(Visitor& visitor)
     Base::visit_edges(visitor);
     visitor.visit(m_associated_connections);
     visitor.visit(m_upgrade_transaction);
+    visitor.visit(m_object_stores);
+}
+
+GC::Ptr<ObjectStore> Database::object_store_with_name(String const& name) const
+{
+    for (auto const& object_store : m_object_stores) {
+        if (object_store->name() == name)
+            return object_store;
+    }
+
+    return nullptr;
 }
 
 Vector<GC::Root<Database>> Database::for_key(StorageAPI::StorageKey const& key)

@@ -6,7 +6,6 @@
 
 #include <AK/ByteString.h>
 #include <AK/JsonObject.h>
-#include <AK/JsonObjectSerializer.h>
 #include <AK/JsonValue.h>
 #include <AK/LexicalPath.h>
 #include <AK/StringBuilder.h>
@@ -25,9 +24,6 @@ static constexpr auto search_engine_name_key = "name"sv;
 
 static ErrorOr<JsonObject> read_settings_file(StringView settings_path)
 {
-    // FIXME: Move this to a generic "Ladybird data directory" helper.
-    auto settings_directory = ByteString::formatted("{}/Ladybird", Core::StandardPaths::user_data_directory());
-
     auto settings_file = Core::File::open(settings_path, Core::File::OpenMode::Read);
     if (settings_file.is_error()) {
         if (settings_file.error().is_errno() && settings_file.error().code() == ENOENT)
@@ -43,20 +39,21 @@ static ErrorOr<JsonObject> read_settings_file(StringView settings_path)
     return move(settings_json.as_object());
 }
 
-static ErrorOr<void> write_settings_file(StringView settings_path, StringView contents)
+static ErrorOr<void> write_settings_file(StringView settings_path, JsonValue const& contents)
 {
     auto settings_directory = LexicalPath { settings_path }.parent();
     TRY(Core::Directory::create(settings_directory, Core::Directory::CreateDirectories::Yes));
 
     auto settings_file = TRY(Core::File::open(settings_path, Core::File::OpenMode::Write));
-    TRY(settings_file->write_until_depleted(contents));
+    TRY(settings_file->write_until_depleted(contents.serialized()));
 
     return {};
 }
 
 Settings Settings::create(Badge<Application>)
 {
-    auto settings_directory = ByteString::formatted("{}/Ladybird", Core::StandardPaths::user_data_directory());
+    // FIXME: Move this to a generic "Ladybird config directory" helper.
+    auto settings_directory = ByteString::formatted("{}/Ladybird", Core::StandardPaths::config_directory());
     auto settings_path = ByteString::formatted("{}/Settings.json", settings_directory);
 
     Settings settings { move(settings_path) };
@@ -86,21 +83,19 @@ Settings::Settings(ByteString settings_path)
 {
 }
 
-String Settings::serialize_json() const
+JsonValue Settings::serialize_json() const
 {
-    StringBuilder builder;
-    auto serializer = MUST(JsonObjectSerializer<>::try_create(builder));
-
-    MUST(serializer.add(new_tab_page_url_key, m_new_tab_page_url.serialize()));
+    JsonObject settings;
+    settings.set(new_tab_page_url_key, m_new_tab_page_url.serialize());
 
     if (m_search_engine.has_value()) {
-        auto search_engine = MUST(serializer.add_object(search_engine_key));
-        MUST(search_engine.add(search_engine_name_key, m_search_engine->name));
-        MUST(search_engine.finish());
+        JsonObject search_engine;
+        search_engine.set(search_engine_name_key, m_search_engine->name);
+
+        settings.set(search_engine_key, move(search_engine));
     }
 
-    MUST(serializer.finish());
-    return MUST(builder.to_string());
+    return settings;
 }
 
 void Settings::restore_defaults()

@@ -44,6 +44,7 @@ public:
     virtual Web::Page const& page() const override { return *m_page; }
 
     ErrorOr<void> connect_to_webdriver(ByteString const& webdriver_ipc_path);
+    ErrorOr<void> connect_to_web_ui(IPC::File);
 
     virtual void paint_next_frame() override;
     virtual void process_screenshot_requests() override;
@@ -89,8 +90,7 @@ public:
     void js_console_request_messages(i32 start_index);
     void did_output_js_console_message(i32 message_index);
     void console_peer_did_misbehave(char const* reason);
-    void did_get_styled_js_console_messages(i32 start_index, ReadonlySpan<String> message_types, ReadonlySpan<String> messages);
-    void did_get_unstyled_js_console_messages(i32 start_index, ReadonlySpan<WebView::ConsoleOutput> console_output);
+    void did_get_js_console_messages(i32 start_index, ReadonlySpan<WebView::ConsoleOutput> console_output);
 
     Vector<Web::CSS::StyleSheetIdentifier> list_style_sheets() const;
 
@@ -174,12 +174,7 @@ private:
     virtual void page_did_allocate_backing_stores(i32 front_bitmap_id, Gfx::ShareableBitmap front_bitmap, i32 back_bitmap_id, Gfx::ShareableBitmap back_bitmap) override;
     virtual IPC::File request_worker_agent() override;
     virtual void page_did_mutate_dom(FlyString const& type, Web::DOM::Node const& target, Web::DOM::NodeList& added_nodes, Web::DOM::NodeList& removed_nodes, GC::Ptr<Web::DOM::Node> previous_sibling, GC::Ptr<Web::DOM::Node> next_sibling, Optional<String> const& attribute_name) override;
-    virtual void update_process_statistics() override;
-    virtual void request_current_settings() override;
-    virtual void restore_default_settings() override;
-    virtual void set_new_tab_page_url(URL::URL const&) override;
-    virtual void request_available_search_engines() override;
-    virtual void set_search_engine(Optional<String> const&) override;
+    virtual void received_message_from_web_ui(String const& name, JS::Value data) override;
 
     Web::Layout::Viewport* layout_root();
     void setup_palette();
@@ -212,6 +207,7 @@ private:
     Web::CSS::PreferredMotion m_preferred_motion { Web::CSS::PreferredMotion::NoPreference };
 
     RefPtr<WebDriverConnection> m_webdriver;
+    RefPtr<WebUIConnection> m_web_ui;
 
     BackingStoreManager m_backing_store_manager;
 

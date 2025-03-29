@@ -32,25 +32,24 @@ public:
     FlyString(String const&);
     FlyString& operator=(String const&);
 
-    [[nodiscard]] bool is_empty() const;
-    [[nodiscard]] unsigned hash() const;
+    [[nodiscard]] bool is_empty() const { return m_data.byte_count() == 0; }
+    [[nodiscard]] unsigned hash() const { return m_data.hash(); }
     [[nodiscard]] u32 ascii_case_insensitive_hash() const;
 
     explicit operator String() const;
     String to_string() const;
 
     [[nodiscard]] Utf8View code_points() const;
-    [[nodiscard]] ReadonlyBytes bytes() const;
-    [[nodiscard]] StringView bytes_as_string_view() const;
+    [[nodiscard]] ReadonlyBytes bytes() const { return m_data.bytes(); }
+    [[nodiscard]] StringView bytes_as_string_view() const { return m_data.bytes(); }
 
-    [[nodiscard]] ALWAYS_INLINE bool operator==(FlyString const& other) const { return m_data.raw({}) == other.m_data.raw({}); }
-    [[nodiscard]] bool operator==(String const&) const;
+    [[nodiscard]] ALWAYS_INLINE bool operator==(FlyString const& other) const { return m_data.raw(Badge<FlyString> {}) == other.m_data.raw(Badge<FlyString> {}); }
+    [[nodiscard]] bool operator==(String const& other) const { return m_data == other; }
     [[nodiscard]] bool operator==(StringView) const;
     [[nodiscard]] bool operator==(char const*) const;
 
     [[nodiscard]] int operator<=>(FlyString const& other) const;
 
-    static void did_destroy_fly_string_data(Badge<Detail::StringData>, Detail::StringData const&);
     [[nodiscard]] Detail::StringBase data(Badge<String>) const;
 
     // This is primarily interesting to unit tests.
@@ -90,7 +89,7 @@ private:
     friend class Optional<FlyString>;
 
     explicit FlyString(nullptr_t)
-        : m_data(Detail::StringBase(nullptr))
+        : m_data(nullptr)
     {
     }
 
@@ -101,8 +100,10 @@ private:
 
     Detail::StringBase m_data;
 
-    bool is_invalid() const { return m_data.is_invalid(); }
+    bool is_invalid() const { return m_data.raw(Badge<FlyString> {}) == 0; }
 };
+
+void did_destroy_fly_string_data(Badge<Detail::StringData>, Detail::StringData const&);
 
 template<>
 class Optional<FlyString> : public OptionalBase<FlyString> {

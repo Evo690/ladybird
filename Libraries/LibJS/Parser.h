@@ -59,7 +59,7 @@ public:
 
     template<typename FunctionNodeType>
     NonnullRefPtr<FunctionNodeType> parse_function_node(u16 parse_options = FunctionNodeParseOptions::CheckForFunctionAndName, Optional<Position> const& function_start = {});
-    Vector<FunctionParameter> parse_formal_parameters(int& function_length, u16 parse_options = 0);
+    NonnullRefPtr<FunctionParameters const> parse_formal_parameters(int& function_length, u16 parse_options = 0);
 
     enum class AllowDuplicates {
         Yes,
@@ -87,7 +87,7 @@ public:
 
     NonnullRefPtr<Statement const> parse_statement(AllowLabelledFunction allow_labelled_function = AllowLabelledFunction::No);
     NonnullRefPtr<BlockStatement const> parse_block_statement();
-    NonnullRefPtr<FunctionBody const> parse_function_body(Vector<FunctionParameter> const& parameters, FunctionKind function_kind, FunctionParsingInsights&);
+    NonnullRefPtr<FunctionBody const> parse_function_body(NonnullRefPtr<FunctionParameters const>, FunctionKind function_kind, FunctionParsingInsights&);
     NonnullRefPtr<ReturnStatement const> parse_return_statement();
 
     enum class IsForLoopVariableDeclaration {
@@ -211,7 +211,7 @@ public:
     // Needs to mess with m_state, and we're not going to expose a non-const getter for that :^)
     friend ThrowCompletionOr<GC::Ref<ECMAScriptFunctionObject>> FunctionConstructor::create_dynamic_function(VM&, FunctionObject&, FunctionObject*, FunctionKind, ReadonlySpan<String> parameter_args, String const& body_arg);
 
-    static Parser parse_function_body_from_string(ByteString const& body_string, u16 parse_options, Vector<FunctionParameter> const& parameters, FunctionKind kind, FunctionParsingInsights&);
+    static Parser parse_function_body_from_string(ByteString const& body_string, u16 parse_options, NonnullRefPtr<FunctionParameters const>, FunctionKind kind, FunctionParsingInsights&);
 
 private:
     friend class ScopePusher;
@@ -243,7 +243,7 @@ private:
     bool match(TokenType type) const;
     bool done() const;
     void expected(char const* what);
-    void syntax_error(ByteString const& message, Optional<Position> = {});
+    void syntax_error(String const& message, Optional<Position> = {});
     Token consume();
     Token consume_and_allow_division();
     Token consume_identifier();
@@ -260,7 +260,7 @@ private:
 
     Token next_token(size_t steps = 1) const;
 
-    void check_identifier_name_for_assignment_validity(DeprecatedFlyString const&, bool force_strict = false);
+    void check_identifier_name_for_assignment_validity(FlyString const&, bool force_strict = false);
 
     bool try_parse_arrow_function_expression_failed_at_position(Position const&) const;
     void set_try_parse_arrow_function_expression_failed_at_position(Position const&, bool);
@@ -270,7 +270,7 @@ private:
     bool parse_directive(ScopeNode& body);
     void parse_statement_list(ScopeNode& output_node, AllowLabelledFunction allow_labelled_functions = AllowLabelledFunction::No);
 
-    DeprecatedFlyString consume_string_value();
+    FlyString consume_string_value();
     ModuleRequest parse_module_request();
 
     struct RulePosition {
@@ -308,9 +308,9 @@ private:
         Vector<ParserError> errors;
         ScopePusher* current_scope_pusher { nullptr };
 
-        HashMap<StringView, Optional<Position>> labels_in_scope;
+        HashMap<FlyString, Optional<Position>> labels_in_scope;
         HashMap<size_t, Position> invalid_property_range_in_object_expression;
-        HashTable<StringView>* referenced_private_names { nullptr };
+        HashTable<FlyString>* referenced_private_names { nullptr };
 
         bool strict_mode { false };
         bool allow_super_property_lookup { false };
@@ -333,12 +333,11 @@ private:
         ParserState(Lexer, Program::Type);
     };
 
-    [[nodiscard]] NonnullRefPtr<Identifier const> create_identifier_and_register_in_current_scope(SourceRange range, DeprecatedFlyString string, Optional<DeclarationKind> = {});
+    [[nodiscard]] NonnullRefPtr<Identifier const> create_identifier_and_register_in_current_scope(SourceRange range, FlyString string, Optional<DeclarationKind> = {});
 
     NonnullRefPtr<SourceCode const> m_source_code;
     Vector<Position> m_rule_starts;
     ParserState m_state;
-    DeprecatedFlyString m_filename;
     Vector<ParserState> m_saved_state;
     HashMap<size_t, TokenMemoization> m_token_memoizations;
     Program::Type m_program_type;

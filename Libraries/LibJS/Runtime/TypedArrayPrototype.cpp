@@ -1433,7 +1433,11 @@ static ThrowCompletionOr<void> set_typed_array_from_typed_array(VM& vm, TypedArr
 
     // 16. If srcLength + targetOffset > targetLength, throw a RangeError exception.
     Checked<size_t> checked = source_length;
-    checked += static_cast<u32>(target_offset);
+
+    if (target_offset > static_cast<double>(NumericLimits<size_t>::max()))
+        return vm.throw_completion<RangeError>(ErrorType::TypedArrayOverflowOrOutOfBounds, "target offset");
+    checked += static_cast<size_t>(target_offset);
+
     if (checked.has_overflow() || checked.value() > target_length)
         return vm.throw_completion<RangeError>(ErrorType::TypedArrayOverflowOrOutOfBounds, "target length");
 
@@ -1539,7 +1543,11 @@ static ThrowCompletionOr<void> set_typed_array_from_array_like(VM& vm, TypedArra
 
     // 7. If srcLength + targetOffset > targetLength, throw a RangeError exception.
     Checked<size_t> checked = source_length;
-    checked += static_cast<u32>(target_offset);
+
+    if (target_offset > static_cast<double>(NumericLimits<size_t>::max()))
+        return vm.throw_completion<RangeError>(ErrorType::TypedArrayOverflowOrOutOfBounds, "target offset");
+    checked += static_cast<size_t>(target_offset);
+
     if (checked.has_overflow() || checked.value() > target_length)
         return vm.throw_completion<RangeError>(ErrorType::TypedArrayOverflowOrOutOfBounds, "target length");
 
@@ -1987,7 +1995,7 @@ JS_DEFINE_NATIVE_FUNCTION(TypedArrayPrototype::to_locale_string)
         if (!next_element.is_nullish()) {
             // i. Let S be ? ToString(? Invoke(nextElement, "toLocaleString", « locales, options »)).
             auto locale_string_value = TRY(next_element.invoke(vm, vm.names.toLocaleString, locales, options));
-            auto locale_string = TRY(locale_string_value.to_byte_string(vm));
+            auto locale_string = TRY(locale_string_value.to_string(vm));
 
             // ii. Set R to the string-concatenation of R and S.
             builder.append(locale_string);
@@ -1997,7 +2005,7 @@ JS_DEFINE_NATIVE_FUNCTION(TypedArrayPrototype::to_locale_string)
     }
 
     // 7. Return R.
-    return PrimitiveString::create(vm, builder.to_byte_string());
+    return PrimitiveString::create(vm, builder.to_string_without_validation());
 }
 
 // 23.2.3.32 %TypedArray%.prototype.toReversed ( ), https://tc39.es/ecma262/#sec-%typedarray%.prototype.toreversed

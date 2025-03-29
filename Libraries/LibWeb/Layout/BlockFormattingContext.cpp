@@ -265,6 +265,12 @@ void BlockFormattingContext::compute_width(Box const& box, AvailableSpace const&
                     } else {
                         width = zero_value;
                     }
+                } else if (available_space.width.is_min_content()) {
+                    width = CSS::Length::make_px(calculate_min_content_width(box));
+                } else if (available_space.width.is_max_content()) {
+                    width = CSS::Length::make_px(calculate_max_content_width(box));
+                } else {
+                    VERIFY_NOT_REACHED();
                 }
             } else {
                 if (!margin_left.is_auto() && !margin_right.is_auto()) {
@@ -304,8 +310,7 @@ void BlockFormattingContext::compute_width(Box const& box, AvailableSpace const&
     //    but this time using the computed value of 'max-width' as the computed value for 'width'.
     if (!should_treat_max_width_as_none(box, available_space.width)) {
         auto max_width = calculate_inner_width(box, remaining_available_space.width, computed_values.max_width());
-        auto used_width_px = used_width.is_auto() ? CSSPixels { 0 } : used_width.to_px(box);
-        if (used_width_px > max_width) {
+        if (used_width.to_px(box) > max_width) {
             used_width = try_compute_width(CSS::Length::make_px(max_width));
         }
     }
@@ -564,6 +569,10 @@ void BlockFormattingContext::layout_inline_children(BlockContainer const& block_
         block_container_state.set_content_width(used_width_px);
         block_container_state.set_content_height(context.automatic_content_height());
     }
+
+    // If we end up with remaining vertical clearance, we should make sure the next block is moved down accordingly.
+    if (context.vertical_float_clearance() > 0)
+        m_y_offset_of_current_block_container = context.vertical_float_clearance();
 }
 
 CSSPixels BlockFormattingContext::compute_auto_height_for_block_level_element(Box const& box, AvailableSpace const& available_space)
@@ -704,9 +713,8 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
         && box.computed_values().height().is_auto();
 
     // NOTE: In quirks mode, the html element's height matches the viewport so it can be treated as definite
-    if (box_state.has_definite_height() || box_is_html_element_in_quirks_mode) {
+    if (box_state.has_definite_height() || box_is_html_element_in_quirks_mode)
         resolve_used_height_if_treated_as_auto(box, available_space);
-    }
 
     auto independent_formatting_context = create_independent_formatting_context_if_needed(m_state, m_layout_mode, box);
 
@@ -817,7 +825,9 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
         if (!m_margin_state.box_last_in_flow_child_margin_bottom_collapsed) {
             m_margin_state.reset();
         }
-        m_y_offset_of_current_block_container = box_state.offset.y() + box_state.content_height() + box_state.border_box_bottom();
+        auto box_height = box_state.offset.y() + box_state.content_height() + box_state.border_box_bottom();
+        if (!m_y_offset_of_current_block_container.has_value() || box_height > m_y_offset_of_current_block_container.value())
+            m_y_offset_of_current_block_container = box_height;
     }
     m_margin_state.box_last_in_flow_child_margin_bottom_collapsed = false;
 
@@ -933,7 +943,8 @@ BlockFormattingContext::DidIntroduceClearance BlockFormattingContext::clear_floa
                 m_y_offset_of_current_block_container = clearance_y_in_containing_block;
             }
 
-            float_side.clear();
+            if (!child_box.is_floating())
+                float_side.clear();
         }
     };
 
@@ -1053,7 +1064,7 @@ void BlockFormattingContext::layout_floating_box(Box const& box, BlockContainer 
     }
 
     // Then we float it to the left or right.
-    auto float_box = [&](FloatSide side, FloatSideData& side_data, FloatSideData& other_side_data) {
+    auto float_box = [&](FloatSide side, FloatSideData& side_data) {
         CSSPixels offset_from_edge = 0;
         auto float_to_edge = [&] {
             if (side == FloatSide::Left)
@@ -1165,18 +1176,13 @@ void BlockFormattingContext::layout_floating_box(Box const& box, BlockContainer 
         // NOTE: We don't set the X position here, that happens later, once we know the root block width.
         //       See parent_context_did_dimension_child_root_box() for that logic.
         box_state.set_content_y(y);
-
-        // If the new box was inserted below the bottom of the opposite side,
-        // we reset the other side back to its edge.
-        if (top_margin_edge > other_side_data.y_offset)
-            other_side_data.clear();
     };
 
     // Next, float to the left and/or right
     if (box.computed_values().float_() == CSS::Float::Left) {
-        float_box(FloatSide::Left, m_left_floats, m_right_floats);
+        float_box(FloatSide::Left, m_left_floats);
     } else if (box.computed_values().float_() == CSS::Float::Right) {
-        float_box(FloatSide::Right, m_right_floats, m_left_floats);
+        float_box(FloatSide::Right, m_right_floats);
     }
 
     m_state.get_mutable(root()).add_floating_descendant(box);
@@ -1232,7 +1238,7 @@ void BlockFormattingContext::layout_list_item_marker(ListItemBox const& list_ite
     auto final_marker_width = marker_state.content_width() + default_marker_width;
 
     if (marker.list_style_position() == CSS::ListStylePosition::Inside) {
-        list_item_state.set_content_offset({ final_marker_width, list_item_state.offset.y() });
+        list_item_state.set_content_x(list_item_state.offset.x() + final_marker_width);
         list_item_state.set_content_width(list_item_state.content_width() - final_marker_width);
     }
 
