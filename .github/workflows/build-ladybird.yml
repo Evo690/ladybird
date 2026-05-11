@@ -11,6 +11,8 @@ jobs:
     env:
       CC: clang-21
       CXX: clang++-21
+      CFLAGS: "-march=x86-64 -mtune=generic"
+      CXXFLAGS: "-march=x86-64 -mtune=generic"
 
     steps:
       - name: Checkout repository
@@ -64,6 +66,8 @@ jobs:
           BUILD_PRESET=Release \
           CC=clang-21 \
           CXX=clang++-21 \
+          CFLAGS="-march=x86-64 -mtune=generic" \
+          CXXFLAGS="-march=x86-64 -mtune=generic" \
           ./Meta/ladybird.py build
 
       - name: Package complete build
