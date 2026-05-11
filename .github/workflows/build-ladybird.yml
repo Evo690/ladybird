@@ -59,18 +59,12 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Bootstrap vcpkg
-        run: |
-          python3 Meta/ladybird.py vcpkg bootstrap
-
-      - name: Configure build
-        run: |
-          cmake --preset Release \
-            -DLAGOM_LINK_POOL_SIZE=1
-
       - name: Build Ladybird
         run: |
-          cmake --build Build/release -j2
+          BUILD_PRESET=Release \
+          CC=clang-21 \
+          CXX=clang++-21 \
+          ./Meta/ladybird.py build
 
       - name: Package artifact
         run: |
