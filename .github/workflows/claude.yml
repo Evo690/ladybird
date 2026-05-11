@@ -1,0 +1,128 @@
+name: Build Ladybird(claude)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    name: Build Ladybird (Ubuntu / Clang-21)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180   # Ladybird is a big build; 3 h ceiling
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # vcpkg lives as a submodule
+
+      # ── 2. Base apt packages ─────────────────────────────────────────────────
+      - name: Install base dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            autoconf autoconf-archive automake build-essential \
+            ccache curl fonts-liberation2 git \
+            libdrm-dev libgl1-mesa-dev libpulse-dev libtool \
+            nasm ninja-build pkg-config python3-venv \
+            qt6-base-dev qt6-tools-dev-tools qt6-wayland \
+            tar unzip zip lsb-release wget gnupg
+
+      # ── 3. CMake 3.30+ from Kitware ──────────────────────────────────────────
+      - name: Install CMake 3.30+
+        run: |
+          wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg > /dev/null
+
+          echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] \
+            https://apt.kitware.com/ubuntu/ $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/kitware.list
+
+          sudo apt-get update -y
+          sudo apt-get install -y cmake
+
+      # ── 4. Clang-21 from LLVM ────────────────────────────────────────────────
+      - name: Install Clang-21
+        run: |
+          sudo wget -qO /usr/share/keyrings/llvm-snapshot.gpg.key \
+            https://apt.llvm.org/llvm-snapshot.gpg.key
+
+          echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg.key] \
+            https://apt.llvm.org/$(lsb_release -sc)/ \
+            llvm-toolchain-$(lsb_release -sc)-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list
+
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang-21 clangd-21 clang-tools-21 \
+            clang-format-21 clang-tidy-21 lld-21
+
+          # Make clang-21 the default for cmake to pick up
+          sudo update-alternatives --install /usr/bin/clang   clang   /usr/bin/clang-21   100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
+
+      # ── 5. Rust toolchain ────────────────────────────────────────────────────
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── 6. ccache ────────────────────────────────────────────────────────────
+      - name: Configure ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ladybird-clang21-${{ runner.os }}
+          max-size: 2G
+
+      - name: Put ccache on PATH
+        run: echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+
+      # ── 7. vcpkg binary cache ─────────────────────────────────────────────────
+      # Ladybird uses vcpkg to pull heavy deps (Skia, ICU, …); cache the
+      # binary packages so subsequent runs skip recompiling them.
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg
+            Build/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      # ── 8. Build ──────────────────────────────────────────────────────────────
+      - name: Build Ladybird (Release)
+        env:
+          CC: clang-21
+          CXX: clang++-21
+          # ccache compiler launcher
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+        run: |
+          # Limit parallel link jobs to avoid OOM on the 7 GB GH runner
+          ./Meta/ladybird.py build -- \
+            -DLAGOM_LINK_POOL_SIZE=2
+
+      # ── 9. Verify binary exists ───────────────────────────────────────────────
+      - name: Sanity-check binary
+        run: |
+          ls -lh Build/release/bin/Ladybird
+          file  Build/release/bin/Ladybird
+
+      # ── 10. Package artifact ──────────────────────────────────────────────────
+      - name: Package build output
+        run: |
+          cd Build/release
+          tar -czf ../../ladybird-linux-x86_64.tar.gz \
+            bin/ \
+            share/   # resource files (fonts, icons, …)
+
+      - name: Upload Ladybird artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ladybird-linux-x86_64
+          path: ladybird-linux-x86_64.tar.gz
+          retention-days: 7
+          if-no-files-found: error
