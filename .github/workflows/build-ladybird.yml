@@ -19,22 +19,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Cache ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}
-          restore-keys: |
-            ccache-${{ runner.os }}-
-
-      - name: Cache Ladybird build caches
-        uses: actions/cache@v4
-        with:
-          path: Build/caches
-          key: ladybird-cache-${{ runner.os }}-${{ github.ref_name }}
-          restore-keys: |
-            ladybird-cache-${{ runner.os }}-
-
       - name: Install dependencies
         run: |
           sudo apt update
@@ -75,20 +59,14 @@ jobs:
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Configure ccache
+      - name: Bootstrap vcpkg
         run: |
-          ccache --max-size=5G
-
-      - name: Bootstrap Ladybird toolchain
-        run: |
-          python3 Meta/ladybird.py rebuild-toolchain
+          python3 Meta/ladybird.py vcpkg bootstrap
 
       - name: Configure build
         run: |
           cmake --preset Release \
-            -DLAGOM_LINK_POOL_SIZE=1 \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DLAGOM_LINK_POOL_SIZE=1
 
       - name: Build Ladybird
         run: |
@@ -108,7 +86,3 @@ jobs:
         with:
           name: ladybird-linux
           path: ladybird-linux.tar.gz
-
-      - name: Show ccache statistics
-        run: |
-          ccache -s
