@@ -1,0 +1,112 @@
+name: Build Ladybird
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    env:
+      CC: clang-21
+      CXX: clang++-21
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Cache build + vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            Build/release/vcpkg
+            Build/release/vcpkg_installed
+            Build/release/CMakeCache.txt
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+
+          sudo apt install -y \
+            autoconf \
+            autoconf-archive \
+            automake \
+            build-essential \
+            ccache \
+            cmake \
+            curl \
+            fonts-liberation2 \
+            git \
+            libdrm-dev \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libtool \
+            nasm \
+            ninja-build \
+            pkg-config \
+            python3-venv \
+            qt6-base-dev \
+            qt6-tools-dev-tools \
+            qt6-wayland \
+            tar \
+            unzip \
+            zip
+
+      - name: Install LLVM 21
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+
+      - name: Install Rust
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Configure ccache
+        run: |
+          ccache --max-size=5G
+
+      - name: Configure build
+        run: |
+          cmake --preset Release \
+            -DLAGOM_LINK_POOL_SIZE=1 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: |
+          cmake --build Build/release -j2
+
+      - name: Package artifact
+        run: |
+          mkdir artifact
+
+          cp -r Build/release/bin artifact/
+          cp -r Base/res artifact/
+
+          tar -czf ladybird-linux.tar.gz artifact
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ladybird-linux
+          path: ladybird-linux.tar.gz
+
+      - name: Show ccache stats
+        run: |
+          ccache -s
