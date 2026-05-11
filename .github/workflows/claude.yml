@@ -93,17 +93,23 @@ jobs:
           restore-keys: vcpkg-${{ runner.os }}-
 
       # ── 8. Build ──────────────────────────────────────────────────────────────
-      - name: Build Ladybird (Release)
+      # Split configure + build so cmake -D flags go to cmake, not ninja.
+      - name: Configure (cmake)
         env:
           CC: clang-21
           CXX: clang++-21
-          # ccache compiler launcher
           CMAKE_C_COMPILER_LAUNCHER: ccache
           CMAKE_CXX_COMPILER_LAUNCHER: ccache
         run: |
-          # Limit parallel link jobs to avoid OOM on the 7 GB GH runner
-          ./Meta/ladybird.py build -- \
+          cmake --preset Release \
             -DLAGOM_LINK_POOL_SIZE=2
+
+      - name: Build (cmake --build)
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+        run: |
+          cmake --build --preset Release
 
       # ── 9. Verify binary exists ───────────────────────────────────────────────
       - name: Sanity-check binary
