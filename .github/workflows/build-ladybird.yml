@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -26,16 +27,13 @@ jobs:
           restore-keys: |
             ccache-${{ runner.os }}-
 
-      - name: Cache build + vcpkg
+      - name: Cache Ladybird build caches
         uses: actions/cache@v4
         with:
-          path: |
-            Build/release/vcpkg
-            Build/release/vcpkg_installed
-            Build/release/CMakeCache.txt
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          path: Build/caches
+          key: ladybird-cache-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-
+            ladybird-cache-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -81,6 +79,10 @@ jobs:
         run: |
           ccache --max-size=5G
 
+      - name: Bootstrap Ladybird toolchain
+        run: |
+          python3 Meta/ladybird.py rebuild-toolchain
+
       - name: Configure build
         run: |
           cmake --preset Release \
@@ -88,7 +90,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
-      - name: Build
+      - name: Build Ladybird
         run: |
           cmake --build Build/release -j2
 
@@ -107,6 +109,6 @@ jobs:
           name: ladybird-linux
           path: ladybird-linux.tar.gz
 
-      - name: Show ccache stats
+      - name: Show ccache statistics
         run: |
           ccache -s
