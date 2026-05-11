@@ -22,7 +22,7 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ccache
+          path: ~/.cache
           key: ccache-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
             ccache-${{ runner.os }}-
