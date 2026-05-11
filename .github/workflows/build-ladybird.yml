@@ -66,11 +66,11 @@ jobs:
           CXX=clang++-21 \
           ./Meta/ladybird.py build
 
-      - name: Package artifact
+      - name: Package complete build
         run: |
           mkdir artifact
 
-          cp -r Build/release/bin artifact/
+          cp -r Build/release artifact/
           cp -r Base/res artifact/
 
           tar -czf ladybird-linux.tar.gz artifact
