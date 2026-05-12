@@ -25,17 +25,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}
+          key: ccache-v2-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ccache-${{ runner.os }}-
+            ccache-v2-${{ runner.os }}-
 
       - name: Cache Ladybird build caches
         uses: actions/cache@v4
         with:
           path: Build/caches
-          key: ladybird-cache-${{ runner.os }}-${{ github.ref_name }}
+          key: ladybird-cache-v2-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ladybird-cache-${{ runner.os }}-
+            ladybird-cache-v2-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -76,6 +76,10 @@ jobs:
         run: |
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Clean old build
+        run: |
+          rm -rf Build/release
 
       - name: Configure ccache
         run: |
