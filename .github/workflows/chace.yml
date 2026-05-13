@@ -25,17 +25,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache
-          key: ccache-v3-${{ runner.os }}-${{ github.ref_name }}
+          key: ccache-v4-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ccache-v3-${{ runner.os }}-
+            ccache-v4-${{ runner.os }}-
 
       - name: Cache Ladybird build caches
         uses: actions/cache@v4
         with:
           path: Build/caches
-          key: ladybird-cache-v3-${{ runner.os }}-${{ github.ref_name }}
+          key: ladybird-cache-v4-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ladybird-cache-v3-${{ runner.os }}-
+            ladybird-cache-v4-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -79,7 +79,7 @@ jobs:
 
       - name: Clean old build
         run: |
-          rm -rf Build/release
+          rm -rf Build
 
       - name: Configure ccache
         run: |
