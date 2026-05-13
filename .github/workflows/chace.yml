@@ -11,8 +11,8 @@ jobs:
     env:
       CC: clang-21
       CXX: clang++-21
-      CFLAGS: "-march=x86-64 -mtune=generic"
-      CXXFLAGS: "-march=x86-64 -mtune=generic"
+      CFLAGS: "-march=x86-64 -mtune=generic -mno-bmi -mno-bmi2 -mno-avx2"
+      CXXFLAGS: "-march=x86-64 -mtune=generic -mno-bmi -mno-bmi2 -mno-avx2"
 
     steps:
       - name: Checkout repository
@@ -25,17 +25,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache
-          key: ccache-v2-${{ runner.os }}-${{ github.ref_name }}
+          key: ccache-v3-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ccache-v2-${{ runner.os }}-
+            ccache-v3-${{ runner.os }}-
 
       - name: Cache Ladybird build caches
         uses: actions/cache@v4
         with:
           path: Build/caches
-          key: ladybird-cache-v2-${{ runner.os }}-${{ github.ref_name }}
+          key: ladybird-cache-v3-${{ runner.os }}-${{ github.ref_name }}
           restore-keys: |
-            ladybird-cache-v2-${{ runner.os }}-
+            ladybird-cache-v3-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -92,8 +92,8 @@ jobs:
           BUILD_PRESET=Release \
           CC="ccache clang-21" \
           CXX="ccache clang++-21" \
-          CFLAGS="-march=x86-64 -mtune=generic" \
-          CXXFLAGS="-march=x86-64 -mtune=generic" \
+          CFLAGS="-march=x86-64 -mtune=generic -mno-bmi -mno-bmi2 -mno-avx2" \
+          CXXFLAGS="-march=x86-64 -mtune=generic -mno-bmi -mno-bmi2 -mno-avx2" \
           ./Meta/ladybird.py build
 
       - name: Package complete build
